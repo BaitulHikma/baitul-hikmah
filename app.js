@@ -9,7 +9,12 @@ let allBooks = [];
 let allMembers = [];
 let profileData = null;
 let currentExploreFilter = 'all';
+let singleBookId = null;        // set when arriving at Explore from a profile card tap
 let activeModalBook = null;
+let editMetaContext = null;     // { mode: 'pending', index } or { mode: 'existing', bookId }
+let pendingBookFiles = [];      // [{ base64, bookName, writer, publisher }]
+
+const PAGES = ['auth', 'profile', 'explore', 'members', 'addbooks'];
 
 // ---------------------------------------------------------------- HELPERS --
 function $(id) { return document.getElementById(id); }
@@ -27,10 +32,83 @@ function showToast(msg) {
   showToast._t = setTimeout(() => t.classList.add('hidden'), 2600);
 }
 
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return String(d);
+  return dt.toLocaleDateString();
+}
+
+// ---------------------------------------------------- DOUBLE-TAP GUARD ----
+// Every action in the app (button click or form submit) runs through this.
+// While a call for a given "key" is in flight, repeat taps are ignored —
+// this is what stops "sign up" being submitted five times because the
+// network felt slow. The button also gets an instant visual "busy" state.
+const busyKeys = new Set();
+async function guardedAction(key, btnEl, fn) {
+  if (busyKeys.has(key)) return;
+  busyKeys.add(key);
+  if (btnEl) { btnEl.classList.add('is-busy'); btnEl.disabled = true; }
+  try {
+    await fn();
+  } catch (err) {
+    showToast(err.message || 'Something went wrong.');
+  } finally {
+    busyKeys.delete(key);
+    if (btnEl) { btnEl.classList.remove('is-busy'); btnEl.disabled = false; }
+  }
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Shrinks an image (by quality, then by dimensions) until it's under
+// maxKB. Runs entirely in the browser on a <canvas> — no server round trip.
+function compressImage(file, maxKB) {
+  maxKB = maxKB || 500;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let quality = 0.9;
+        let scale = 1;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        function attempt(triesLeft) {
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (!blob) { reject(new Error('Could not process image.')); return; }
+            const kb = blob.size / 1024;
+            if (kb <= maxKB || triesLeft <= 0) {
+              const fr = new FileReader();
+              fr.onload = () => resolve(fr.result);
+              fr.readAsDataURL(blob);
+            } else {
+              if (quality > 0.35) quality -= 0.15; else scale = Math.max(0.2, scale - 0.15);
+              attempt(triesLeft - 1);
+            }
+          }, 'image/jpeg', quality);
+        }
+        attempt(14);
+      };
+      img.onerror = () => reject(new Error('Could not read image.'));
+      img.src = e.target.result;
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -62,16 +140,32 @@ function saveSession(user) {
   currentUser = user;
   localStorage.setItem('bh_user', JSON.stringify(user));
 }
-
 function clearSession() {
   currentUser = null;
   localStorage.removeItem('bh_user');
 }
 
-// ---------------------------------------------------------------- ROUTER ---
-const PAGES = ['auth', 'profile', 'explore', 'members', 'addbooks'];
+function hideBootLoader() {
+  $('bootLoader').classList.add('hidden');
+}
 
-function showPage(name) {
+// ---------------------------------------------------------------- ROUTER ---
+// The current page lives in the URL hash (#profile, #explore, ...) so a
+// reload — or the browser's back button — lands you back where you were,
+// instead of always bouncing to the profile page.
+function goPage(name) {
+  if (location.hash.slice(1) !== name) location.hash = name;
+  else renderPage(name);
+}
+
+window.addEventListener('hashchange', () => {
+  const name = (location.hash || '#profile').slice(1) || 'profile';
+  if (PAGES.includes(name)) renderPage(name);
+});
+
+function renderPage(name) {
+  if (!currentUser && name !== 'auth') name = 'auth';
+
   PAGES.forEach(p => $('page-' + p).classList.toggle('hidden', p !== name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
 
@@ -81,7 +175,7 @@ function showPage(name) {
 
   if (loggedIn) {
     $('topRightAvatar').src = driveImg(currentUser.dpFileId);
-    $('topRightBtn').onclick = () => { showPage('profile'); refreshProfile(); };
+    $('topRightBtn').onclick = () => goPage('profile');
   }
 
   if (name === 'profile') refreshProfile();
@@ -111,25 +205,25 @@ $('signupDp').onchange = async () => {
   $('signupDpPreview').classList.remove('hidden');
 };
 
-$('loginForm').onsubmit = async (e) => {
+$('loginForm').onsubmit = (e) => {
   e.preventDefault();
-  $('loginError').textContent = '';
-  try {
+  const btn = e.target.querySelector('button[type=submit]');
+  guardedAction('login', btn, async () => {
+    $('loginError').textContent = '';
     const data = await api('login', {
       identifier: $('loginIdentifier').value.trim(),
       password: $('loginPassword').value
-    });
+    }).catch(err => { $('loginError').textContent = err.message; throw err; });
     saveSession(data.user);
-    showPage('profile');
-  } catch (err) {
-    $('loginError').textContent = err.message;
-  }
+    goPage('profile');
+  });
 };
 
-$('signupForm').onsubmit = async (e) => {
+$('signupForm').onsubmit = (e) => {
   e.preventDefault();
-  $('signupError').textContent = '';
-  try {
+  const btn = e.target.querySelector('button[type=submit]');
+  guardedAction('signup', btn, async () => {
+    $('signupError').textContent = '';
     let dpBase64 = '';
     const f = $('signupDp').files[0];
     if (f) dpBase64 = await fileToBase64(f);
@@ -141,48 +235,46 @@ $('signupForm').onsubmit = async (e) => {
       password: $('signupPassword').value,
       reference: $('signupReference').value.trim(),
       dpBase64: dpBase64
-    });
+    }).catch(err => { $('signupError').textContent = err.message; throw err; });
+
     saveSession(data.user);
     showToast('Welcome! Account created.');
-    showPage('profile');
-  } catch (err) {
-    $('signupError').textContent = err.message;
-  }
+    goPage('profile');
+  });
 };
 
-$('sendResetCodeBtn').onclick = async () => {
-  $('forgotError').textContent = '';
-  $('forgotSuccess').textContent = '';
-  const email = $('forgotEmail').value.trim();
-  if (!email) { $('forgotError').textContent = 'Enter your email first.'; return; }
-  try {
-    await api('forgotPasswordRequest', { email });
-    $('forgotSuccess').textContent = 'Code sent! Check your email.';
+$('sendResetCodeBtn').onclick = (e) => {
+  guardedAction('sendReset', e.target, async () => {
+    $('forgotError').textContent = '';
+    $('forgotSuccess').textContent = '';
+    const email = $('forgotEmail').value.trim();
+    if (!email) { $('forgotError').textContent = 'Enter your email first.'; return; }
+    await api('forgotPasswordRequest', { email }).catch(err => { $('forgotError').textContent = err.message; throw err; });
+    $('forgotSuccess').textContent = 'Code sent! Check your inbox (and your spam folder).';
     $('resetStep2').classList.remove('hidden');
-  } catch (err) {
-    $('forgotError').textContent = err.message;
-  }
+  });
 };
 
-$('confirmResetBtn').onclick = async () => {
-  $('forgotError').textContent = '';
-  try {
+$('confirmResetBtn').onclick = (e) => {
+  guardedAction('confirmReset', e.target, async () => {
+    $('forgotError').textContent = '';
+    const code = $('resetCode').value.trim();
+    const newPassword = $('resetNewPassword').value;
+    if (!code || !newPassword) { $('forgotError').textContent = 'Enter the code and a new password.'; return; }
     await api('forgotPasswordReset', {
       email: $('forgotEmail').value.trim(),
-      code: $('resetCode').value.trim(),
-      newPassword: $('resetNewPassword').value
-    });
+      code: code,
+      newPassword: newPassword
+    }).catch(err => { $('forgotError').textContent = err.message; throw err; });
     showToast('Password reset. Please sign in.');
     showAuthTab('loginForm');
-  } catch (err) {
-    $('forgotError').textContent = err.message;
-  }
+  });
 };
 
 $('signOutBtn').onclick = () => {
   clearSession();
   showAuthTab('loginForm');
-  showPage('auth');
+  goPage('auth');
 };
 
 // ============================================================= PROFILE ====
@@ -190,6 +282,8 @@ $('signOutBtn').onclick = () => {
 async function refreshProfile() {
   if (!currentUser) return;
   try {
+    // ONE call gets everything the profile page needs (counts, feeds,
+    // notifications) — this used to be four separate round trips.
     const data = await api('getProfile', {});
     profileData = data;
     $('profileIdNum').textContent = data.profile.id;
@@ -197,19 +291,13 @@ async function refreshProfile() {
     $('myBooksCount').textContent = data.profile.myBooksCount;
     $('borrowedCount').textContent = data.profile.borrowedCount;
     $('lentOutCount').textContent = data.profile.lentOutCount;
+    $('cubeBookCount').textContent = data.totalBooksCount;
+    $('cubeMemberCount').textContent = data.totalMembersCount;
 
     renderRequestFeed('incomingRequestsList', data.incomingRequests, 'incoming');
     renderRequestFeed('outgoingRequestsList', data.outgoingRequests, 'outgoing');
     renderRequestFeed('borrowedList', data.borrowedBooks, 'borrowed');
-
-    // Explore / members counts on the cubes (fetched lazily, cheap)
-    const booksRes = await api('listBooks', {});
-    $('cubeBookCount').textContent = booksRes.books.length;
-    const membersRes = await api('listMembers', {});
-    $('cubeMemberCount').textContent = membersRes.members.length;
-
-    const inbox = await api('getInbox', {});
-    // (kept for future notification-icon badge; count available at inbox.notificationCount)
+    renderRequestFeed('returnRequestsList', data.returnRequests, 'return');
   } catch (err) {
     showToast(err.message);
   }
@@ -217,12 +305,14 @@ async function refreshProfile() {
 
 function renderRequestFeed(containerId, items, kind) {
   const el = $(containerId);
+  const emptyText = {
+    incoming: 'No incoming requests.', outgoing: 'No outgoing requests.',
+    borrowed: 'No borrowed books.', return: 'No return requests.'
+  }[kind];
+
   if (!items || !items.length) {
-    el.innerHTML = '';
     el.classList.add('empty-hint');
-    el.textContent = kind === 'incoming' ? 'No incoming requests.'
-      : kind === 'outgoing' ? 'No outgoing requests.'
-      : 'No borrowed books.';
+    el.textContent = emptyText;
     return;
   }
   el.classList.remove('empty-hint');
@@ -230,28 +320,34 @@ function renderRequestFeed(containerId, items, kind) {
     let actions = '';
     if (kind === 'incoming') {
       actions = `<div class="req-card-actions">
-        <button class="req-approve" onclick="approveRequest('${r.requestId}')">Approve</button>
-        <button class="req-cancel" onclick="rejectRequest('${r.requestId}')">Cancel</button>
+        <button class="req-approve" onclick="event.stopPropagation(); approveRequest(this,'${r.requestId}')">Approve</button>
+        <button class="req-cancel" onclick="event.stopPropagation(); rejectRequest(this,'${r.requestId}')">Cancel</button>
       </div>`;
     } else if (kind === 'outgoing') {
       actions = `<div class="req-card-actions">
-        <button class="req-cancel" onclick="cancelMyRequest('${r.requestId}')">Cancel req</button>
+        <button class="req-cancel" onclick="event.stopPropagation(); cancelMyRequest(this,'${r.requestId}')">Cancel req</button>
       </div>`;
     } else if (kind === 'borrowed') {
       const label = r.status === 'return_pending' ? 'Return requested' : 'Give back now';
       actions = `<div class="req-card-actions">
-        <button class="req-cancel" ${r.status === 'return_pending' ? 'disabled' : ''} onclick="requestReturn('${r.requestId}')">${label}</button>
+        <button class="req-cancel" ${r.status === 'return_pending' ? 'disabled' : ''} onclick="event.stopPropagation(); requestReturn(this,'${r.requestId}')">${label}</button>
+      </div>`;
+    } else if (kind === 'return') {
+      actions = `<div class="req-card-actions">
+        <button class="req-approve" onclick="event.stopPropagation(); confirmReturn(this,'${r.requestId}')">Confirm returned</button>
       </div>`;
     }
     const personLine = kind === 'incoming'
       ? `From ${r.requesterName || 'Unknown'} · ${r.durationDays} days`
       : kind === 'outgoing'
       ? `Owner: ${r.ownerName || 'Unknown'} · ${r.durationDays} days`
+      : kind === 'return'
+      ? `Borrower: ${r.requesterName || 'Unknown'}`
       : `Owner: ${r.ownerName || 'Unknown'} · ${r.daysLeft != null ? r.daysLeft + ' days left' : ''}`;
-    return `<div class="req-card">
+    return `<div class="req-card" onclick="viewBookFromProfile('${r.bookId}')">
       <img src="${driveImg(r.imageFileId)}" alt="">
       <div class="req-card-body">
-        <div class="name">${escapeHtml(r.bookName || 'Unknown book')}</div>
+        <div class="name">${escapeHtml(r.bookName || 'Untitled book')}</div>
         <div class="meta">${escapeHtml(personLine)}</div>
       </div>
       ${actions}
@@ -259,50 +355,87 @@ function renderRequestFeed(containerId, items, kind) {
   }).join('');
 }
 
-window.approveRequest = async (id) => {
-  try { await api('approveRequest', { requestId: id }); showToast('Request approved.'); refreshProfile(); }
-  catch (err) { showToast(err.message); }
-};
-window.rejectRequest = async (id) => {
-  try { await api('rejectRequest', { requestId: id }); showToast('Request cancelled.'); refreshProfile(); }
-  catch (err) { showToast(err.message); }
-};
-window.cancelMyRequest = async (id) => {
-  try { await api('cancelMyRequest', { requestId: id }); showToast('Request withdrawn.'); refreshProfile(); }
-  catch (err) { showToast(err.message); }
-};
-window.requestReturn = async (id) => {
-  try { await api('requestReturn', { requestId: id }); showToast('Return requested — waiting for owner to confirm.'); refreshProfile(); }
-  catch (err) { showToast(err.message); }
+// Tapping a request/borrowed card in the profile jumps to Explore filtered
+// down to just that one book (fix requested: "make the list clickable").
+window.viewBookFromProfile = (bookId) => {
+  singleBookId = bookId;
+  goPage('explore');
 };
 
-$('exploreCube').onclick = () => { currentExploreFilter = 'all'; showPage('explore'); };
-$('membersCube').onclick = () => showPage('members');
-$('addBookCta').onclick = () => showPage('addbooks');
+window.approveRequest = (btn, id) => guardedAction('approve-' + id, btn, async () => {
+  btn.closest('.req-card').remove();
+  await api('approveRequest', { requestId: id }).catch(err => { refreshProfile(); throw err; });
+  showToast('Request approved.');
+  refreshProfile();
+});
+window.rejectRequest = (btn, id) => guardedAction('reject-' + id, btn, async () => {
+  btn.closest('.req-card').remove();
+  await api('rejectRequest', { requestId: id }).catch(err => { refreshProfile(); throw err; });
+  showToast('Request cancelled.');
+  refreshProfile();
+});
+window.cancelMyRequest = (btn, id) => guardedAction('cancelreq-' + id, btn, async () => {
+  btn.closest('.req-card').remove();
+  await api('cancelMyRequest', { requestId: id }).catch(err => { refreshProfile(); throw err; });
+  showToast('Request withdrawn.');
+  refreshProfile();
+});
+window.requestReturn = (btn, id) => guardedAction('return-' + id, btn, async () => {
+  btn.textContent = 'Return requested';
+  btn.disabled = true;
+  await api('requestReturn', { requestId: id }).catch(err => { refreshProfile(); throw err; });
+  showToast('Return requested — waiting for the owner to confirm.');
+  refreshProfile();
+});
+window.confirmReturn = (btn, id) => guardedAction('confirmreturn-' + id, btn, async () => {
+  btn.closest('.req-card').remove();
+  await api('confirmReturn', { requestId: id }).catch(err => { refreshProfile(); throw err; });
+  showToast('Return confirmed — the book is available again.');
+  refreshProfile();
+});
+
+$('exploreCube').onclick = () => { currentExploreFilter = 'all'; singleBookId = null; goPage('explore'); };
+$('membersCube').onclick = () => goPage('members');
+$('addBookCta').onclick = () => goPage('addbooks');
 
 document.querySelectorAll('#detailSquares .square-btn').forEach(btn => {
   btn.onclick = () => {
+    singleBookId = null;
     currentExploreFilter = btn.dataset.filter === 'mine' ? 'mine'
       : btn.dataset.filter === 'borrowed' ? 'borrowed' : 'lent';
-    showPage('explore');
+    goPage('explore');
   };
 });
 
 // ============================================================= EXPLORE ====
 
 async function refreshBooks() {
+  $('bookGrid').innerHTML = '<p class="empty-hint">Loading…</p>';
   try {
     const data = await api('listBooks', {});
     allBooks = data.books;
-    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === currentExploreFilter));
+
+    if (singleBookId) {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    } else {
+      document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.filter === currentExploreFilter));
+    }
     renderBookGrid();
+
+    // If we arrived here to view one specific book, open it straight away.
+    if (singleBookId) {
+      const b = allBooks.find(x => x.bookId === singleBookId);
+      if (b) openBookModal(singleBookId);
+    }
   } catch (err) {
     showToast(err.message);
+    $('bookGrid').innerHTML = '';
   }
 }
 
 document.querySelectorAll('.chip').forEach(chip => {
   chip.onclick = () => {
+    singleBookId = null;
     currentExploreFilter = chip.dataset.filter;
     document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
@@ -310,23 +443,26 @@ document.querySelectorAll('.chip').forEach(chip => {
   };
 });
 
-$('bookSearch').oninput = () => renderBookGrid();
+$('bookSearch').oninput = () => { singleBookId = null; renderBookGrid(); };
 $('filterBtn').onclick = () => $('filterChips').scrollIntoView({ behavior: 'smooth' });
 
 function renderBookGrid() {
   const q = $('bookSearch').value.trim().toLowerCase();
   let list = allBooks.slice();
 
-  if (currentExploreFilter === 'mine') list = list.filter(b => b.isMine);
-  else if (currentExploreFilter === 'lent') list = list.filter(b => b.isMine && b.status === 'borrowed');
-  else if (currentExploreFilter === 'requesting') list = list.filter(b => !!b.myPendingRequestId);
-  else if (currentExploreFilter === 'requested') list = list.filter(b => !!b.myPendingRequestId);
-  else if (currentExploreFilter === 'borrowed') {
-    const borrowedIds = (profileData && profileData.borrowedBooks || []).map(r => r.bookId);
-    list = list.filter(b => borrowedIds.includes(b.bookId));
+  if (singleBookId) {
+    list = list.filter(b => b.bookId === singleBookId);
+  } else {
+    if (currentExploreFilter === 'mine') list = list.filter(b => b.isMine);
+    else if (currentExploreFilter === 'lent') list = list.filter(b => b.isMine && b.status === 'borrowed');
+    else if (currentExploreFilter === 'requesting') list = list.filter(b => !!b.myPendingRequestId);
+    else if (currentExploreFilter === 'requested') list = list.filter(b => !!b.myPendingRequestId);
+    else if (currentExploreFilter === 'borrowed') {
+      const borrowedIds = (profileData && profileData.borrowedBooks || []).map(r => r.bookId);
+      list = list.filter(b => borrowedIds.includes(b.bookId));
+    }
+    if (q) list = list.filter(b => (b.bookName || '').toLowerCase().includes(q));
   }
-
-  if (q) list = list.filter(b => (b.bookName || '').toLowerCase().includes(q));
 
   const grid = $('bookGrid');
   if (!list.length) {
@@ -334,13 +470,12 @@ function renderBookGrid() {
     return;
   }
   grid.innerHTML = list.map(b => {
-    const statusText = b.status === 'available' ? 'Available'
-      : 'Unavailable till ' + formatDate(b.dueDate);
+    const statusText = b.status === 'available' ? 'Available' : 'Unavailable till ' + formatDate(b.dueDate);
     const statusClass = b.status === 'available' ? 'available' : 'unavailable';
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
       <img src="${driveImg(b.imageFileId)}" alt="">
       <div class="book-card-body">
-        <div class="name">${escapeHtml(b.bookName)}</div>
+        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
         <div class="sub">${escapeHtml(b.publisher || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
@@ -349,103 +484,104 @@ function renderBookGrid() {
   }).join('');
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  const dt = new Date(d);
-  if (isNaN(dt)) return d;
-  return dt.toLocaleDateString();
-}
-
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 // ------------------------------------------------------------ BOOK MODAL --
+// The modal is shown FIRST, instantly, then filled in — this both feels
+// faster and guarantees the popup can never silently fail to appear again.
 window.openBookModal = (bookId) => {
   const b = allBooks.find(x => x.bookId === bookId);
   if (!b) return;
   activeModalBook = b;
-
-  $('modalImage').src = driveImg(b.imageFileId);
-  $('modalBookName').textContent = b.bookName;
-  $('modalWriter').textContent = 'Writer: ' + b.writer;
-  $('modalPublisher').textContent = 'Publisher: ' + b.publisher;
-  $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');
-
-  const statusEl = $('modalStatus');
-  const borrowArea = $('modalBorrowArea');
-  const cancelBtn = $('modalCancelReqBtn');
-  const deleteBtn = $('modalDeleteBtn');
-  const waBtn = $('modalWhatsappBtn');
-
-  borrowArea.classList.add('hidden');
-  cancelBtn.classList.add('hidden');
-  deleteBtn.classList.add('hidden');
-  waBtn.classList.add('disabled');
-  waBtn.removeAttribute('href');
-
-  if (b.isMine) {
-    statusEl.textContent = b.status === 'available' ? 'This is your book — available.' : 'Currently lent out — due ' + formatDate(b.dueDate);
-    statusEl.className = 'modal-status ' + (b.status === 'available' ? '' : '');
-    deleteBtn.classList.remove('hidden');
-  } else if (b.status !== 'available') {
-    statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate);
-  } else if (b.myPendingRequestId) {
-    statusEl.textContent = 'You already requested this book.';
-    cancelBtn.classList.remove('hidden');
-    // A pending request unlocks the WhatsApp button per the spec.
-    if (b.ownerWhatsapp) {
-      waBtn.classList.remove('disabled');
-      waBtn.href = 'https://wa.me/' + b.ownerWhatsapp.replace(/[^0-9]/g, '');
-    }
-  } else {
-    statusEl.textContent = 'Available to borrow.';
-    borrowArea.classList.remove('hidden');
-  }
-
   $('bookModal').classList.remove('hidden');
+
+  try {
+    $('modalImage').src = driveImg(b.imageFileId);
+    $('modalBookName').textContent = b.bookName || 'Untitled book';
+    $('modalWriter').textContent = 'Writer: ' + (b.writer || '—');
+    $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—');
+    $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');
+
+    const statusEl = $('modalStatus');
+    const borrowArea = $('modalBorrowArea');
+    const cancelBtn = $('modalCancelReqBtn');
+    const deleteBtn = $('modalDeleteBtn');
+    const editIcon = $('modalEditIconBtn');
+    const waBtn = $('modalWhatsappBtn');
+
+    borrowArea.classList.add('hidden');
+    cancelBtn.classList.add('hidden');
+    deleteBtn.classList.add('hidden');
+    editIcon.classList.add('hidden');
+    waBtn.classList.add('disabled');
+    waBtn.removeAttribute('href');
+
+    if (b.isMine) {
+      editIcon.classList.remove('hidden');
+      statusEl.textContent = b.status === 'available' ? 'This is your book — available.' : 'Currently lent out — due ' + formatDate(b.dueDate);
+      deleteBtn.classList.remove('hidden');
+    } else if (b.status !== 'available') {
+      statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate);
+    } else if (b.myPendingRequestId) {
+      statusEl.textContent = 'You already requested this book.';
+      cancelBtn.classList.remove('hidden');
+      // A pending request unlocks the WhatsApp button, as specified.
+      const wa = String(b.ownerWhatsapp || '').replace(/[^0-9]/g, '');
+      if (wa) {
+        waBtn.classList.remove('disabled');
+        waBtn.setAttribute('href', 'https://wa.me/' + wa);
+      }
+    } else {
+      statusEl.textContent = 'Available to borrow.';
+      borrowArea.classList.remove('hidden');
+    }
+  } catch (err) {
+    showToast('Could not load full details — please try again.');
+  }
 };
 
 $('closeModalBtn').onclick = () => $('bookModal').classList.add('hidden');
 $('bookModal').querySelector('.modal-backdrop').onclick = () => $('bookModal').classList.add('hidden');
 
-$('modalRequestBtn').onclick = async () => {
-  if (!activeModalBook) return;
-  try {
-    await api('requestBorrow', {
-      bookId: activeModalBook.bookId,
-      durationDays: parseInt($('modalDuration').value, 10) || 7
-    });
-    showToast('Borrow request sent!');
-    $('bookModal').classList.add('hidden');
-    refreshBooks();
-  } catch (err) { showToast(err.message); }
+$('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.bookId, e.target, async () => {
+  const book = activeModalBook;
+  $('bookModal').classList.add('hidden');
+  await api('requestBorrow', {
+    bookId: book.bookId,
+    durationDays: parseInt($('modalDuration').value, 10) || 7
+  }).catch(err => { refreshBooks(); throw err; });
+  showToast('Borrow request sent!');
+  refreshBooks();
+});
+
+$('modalCancelReqBtn').onclick = (e) => guardedAction('cancelbook-' + activeModalBook.bookId, e.target, async () => {
+  const reqId = activeModalBook.myPendingRequestId;
+  if (!reqId) return;
+  $('bookModal').classList.add('hidden');
+  await api('cancelMyRequest', { requestId: reqId }).catch(err => { refreshBooks(); throw err; });
+  showToast('Request cancelled.');
+  refreshBooks();
+});
+
+$('modalDeleteBtn').onclick = (e) => guardedAction('delbook-' + activeModalBook.bookId, e.target, async () => {
+  if (!confirm('Delete "' + (activeModalBook.bookName || 'this book') + '" from the library?')) return;
+  const bookId = activeModalBook.bookId;
+  $('bookModal').classList.add('hidden');
+  await api('deleteBook', { bookId }).catch(err => { refreshBooks(); throw err; });
+  showToast('Book deleted.');
+  refreshBooks();
+});
+
+$('modalEditIconBtn').onclick = () => {
+  editMetaContext = { mode: 'existing', bookId: activeModalBook.bookId };
+  $('editMetaName').value = activeModalBook.bookName || '';
+  $('editMetaWriter').value = activeModalBook.writer || '';
+  $('editMetaPublisher').value = activeModalBook.publisher || '';
+  $('editMetaModal').classList.remove('hidden');
 };
 
-$('modalCancelReqBtn').onclick = async () => {
-  if (!activeModalBook || !activeModalBook.myPendingRequestId) return;
-  try {
-    await api('cancelMyRequest', { requestId: activeModalBook.myPendingRequestId });
-    showToast('Request cancelled.');
-    $('bookModal').classList.add('hidden');
-    refreshBooks();
-  } catch (err) { showToast(err.message); }
-};
-
-$('modalDeleteBtn').onclick = async () => {
-  if (!activeModalBook) return;
-  if (!confirm('Delete "' + activeModalBook.bookName + '" from the library?')) return;
-  try {
-    await api('deleteBook', { bookId: activeModalBook.bookId });
-    showToast('Book deleted.');
-    $('bookModal').classList.add('hidden');
-    refreshBooks();
-  } catch (err) { showToast(err.message); }
-};
-
-// ============================================================= MEMBERS ====
+// ========================================================= MEMBERS =========
 
 async function refreshMembers() {
+  $('membersList').innerHTML = '<p class="empty-hint">Loading…</p>';
   try {
     const data = await api('listMembers', {});
     allMembers = data.members;
@@ -459,29 +595,31 @@ async function refreshMembers() {
       </div>`).join('');
   } catch (err) {
     showToast(err.message);
+    $('membersList').innerHTML = '';
   }
 }
 
-// ============================================================ ADD BOOKS ===
-
-let pendingBookFiles = []; // [{ file, base64, parsed:{bookName,writer,publisher,ownerId}, valid }]
+// ======================================================== ADD BOOKS =======
 
 $('bookFilesInput').onchange = async () => {
   const files = Array.from($('bookFilesInput').files);
+  if (!files.length) return;
   pendingBookFiles = [];
-  for (const f of files) {
-    const base64 = await fileToBase64(f);
-    const nameNoExt = f.name.replace(/\.[^.]+$/, '');
-    const parts = nameNoExt.split('_');
-    const valid = parts.length >= 4;
-    pendingBookFiles.push({
-      file: f, base64,
-      filename: f.name,
-      parsed: valid ? { ownerId: parts[0].trim(), bookName: parts[1].trim(), writer: parts[2].trim(), publisher: parts.slice(3).join('_').trim() } : null,
-      valid
-    });
+  const statusEl = $('compressStatus');
+  statusEl.classList.remove('hidden');
+
+  for (let i = 0; i < files.length; i++) {
+    statusEl.textContent = 'Compressing image ' + (i + 1) + ' of ' + files.length + '…';
+    try {
+      const base64 = await compressImage(files[i], 500);
+      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '' });
+    } catch (err) {
+      showToast('Skipped one image: ' + err.message);
+    }
+    renderAddPreview();
   }
-  renderAddPreview();
+  statusEl.textContent = pendingBookFiles.length + ' image(s) ready — under 500KB each.';
+  setTimeout(() => statusEl.classList.add('hidden'), 2000);
 };
 
 function renderAddPreview() {
@@ -490,60 +628,89 @@ function renderAddPreview() {
   $('addBooksSuccess').textContent = '';
   if (!pendingBookFiles.length) { el.innerHTML = ''; $('uploadBooksBtn').disabled = true; return; }
 
-  el.innerHTML = pendingBookFiles.map(pf => {
-    if (!pf.valid) {
-      return `<div class="add-preview-item bad">
-        <img src="${pf.base64}" alt="">
-        <div class="meta"><div class="warn">Filename format not recognized:</div>${escapeHtml(pf.filename)}</div>
-      </div>`;
-    }
-    return `<div class="add-preview-item">
+  el.innerHTML = pendingBookFiles.map((pf, i) => `
+    <div class="add-preview-item" onclick="openEditMetaForPending(${i})">
       <img src="${pf.base64}" alt="">
-      <div class="meta">
-        <div class="bookname">${escapeHtml(pf.parsed.bookName)}</div>
-        <div>${escapeHtml(pf.parsed.writer)} · ${escapeHtml(pf.parsed.publisher)}</div>
-        <div>Owner ID: ${escapeHtml(pf.parsed.ownerId)}</div>
+      <div class="pen">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-    </div>`;
-  }).join('');
+      <div class="label">${escapeHtml(pf.bookName) || 'Tap to name'}</div>
+    </div>`).join('');
 
-  const anyValid = pendingBookFiles.some(pf => pf.valid);
-  $('uploadBooksBtn').disabled = !anyValid;
+  $('uploadBooksBtn').disabled = false;
 }
 
-$('uploadBooksBtn').onclick = async () => {
-  const valid = pendingBookFiles.filter(pf => pf.valid);
-  if (!valid.length) return;
+window.openEditMetaForPending = (index) => {
+  editMetaContext = { mode: 'pending', index };
+  const pf = pendingBookFiles[index];
+  $('editMetaName').value = pf.bookName || '';
+  $('editMetaWriter').value = pf.writer || '';
+  $('editMetaPublisher').value = pf.publisher || '';
+  $('editMetaModal').classList.remove('hidden');
+};
+
+$('closeEditMetaBtn').onclick = () => $('editMetaModal').classList.add('hidden');
+$('editMetaModal').querySelector('.modal-backdrop').onclick = () => $('editMetaModal').classList.add('hidden');
+
+$('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async () => {
+  if (!editMetaContext) return;
+  const bookName = $('editMetaName').value.trim();
+  const writer = $('editMetaWriter').value.trim();
+  const publisher = $('editMetaPublisher').value.trim();
+
+  if (editMetaContext.mode === 'pending') {
+    const pf = pendingBookFiles[editMetaContext.index];
+    if (pf) { pf.bookName = bookName; pf.writer = writer; pf.publisher = publisher; }
+    $('editMetaModal').classList.add('hidden');
+    renderAddPreview();
+    return;
+  }
+
+  // mode === 'existing': this book is already in the library — save to the server.
+  const bookId = editMetaContext.bookId;
+  $('editMetaModal').classList.add('hidden');
+  await api('editBook', { bookId, bookName, writer, publisher });
+  showToast('Book details updated.');
+  if (activeModalBook && activeModalBook.bookId === bookId) {
+    activeModalBook.bookName = bookName; activeModalBook.writer = writer; activeModalBook.publisher = publisher;
+    openBookModal(bookId);
+  }
+  refreshBooks();
+});
+
+$('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, async () => {
+  if (!pendingBookFiles.length) return;
   $('addBooksError').textContent = '';
   $('addBooksSuccess').textContent = '';
-  try {
-    const data = await api('addBooks', {
-      files: valid.map(pf => ({ filename: pf.filename, base64: pf.base64 }))
-    });
-    $('addBooksSuccess').textContent = data.added.length + ' book(s) added to the library.';
-    pendingBookFiles = [];
-    $('bookFilesInput').value = '';
-    $('addBooksPreview').innerHTML = '';
-    $('uploadBooksBtn').disabled = true;
-    showToast('Books uploaded!');
-  } catch (err) {
-    $('addBooksError').textContent = err.message;
-  }
-};
+  const data = await api('addBooks', { files: pendingBookFiles })
+    .catch(err => { $('addBooksError').textContent = err.message; throw err; });
+
+  $('addBooksSuccess').textContent = data.added.length + ' book(s) added to the library.';
+  pendingBookFiles = [];
+  $('bookFilesInput').value = '';
+  $('addBooksPreview').innerHTML = '';
+  $('uploadBooksBtn').disabled = true;
+  showToast('Books uploaded!');
+});
 
 // ============================================================ NAVIGATION ==
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.onclick = () => showPage(btn.dataset.page);
+  btn.onclick = () => { singleBookId = null; goPage(btn.dataset.page); };
 });
-
-$('backBtn').onclick = () => showPage('profile');
+$('backBtn').onclick = () => goPage('profile');
 
 // ================================================================= BOOT ===
 
-if (currentUser) {
-  showPage('profile');
-} else {
-  showAuthTab('loginForm');
-  showPage('auth');
-}
+(function boot() {
+  const startHash = (location.hash || '').slice(1);
+  if (currentUser) {
+    renderPage(PAGES.includes(startHash) ? startHash : 'profile');
+  } else {
+    showAuthTab('loginForm');
+    renderPage('auth');
+  }
+  // Small delay so the boot text doesn't just flash for logged-out users,
+  // while still feeling instant on a normal connection.
+  setTimeout(hideBootLoader, 250);
+})();
