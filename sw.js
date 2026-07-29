@@ -1,9 +1,10 @@
 // ============================================================================
 // SERVICE WORKER — runs in the background even when the site/app is closed.
-// Handles app shell caching and 100% reliable background push notifications.
+// Two jobs: (1) cache the app shell so it opens instantly and works offline,
+// (2) receive push notifications sent from Code.gs via Firebase.
 // ============================================================================
 
-const CACHE_NAME = 'baitul-hikmah-v2';
+const CACHE_NAME = 'baitul-hikmah-v1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -32,10 +33,11 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first for API calls, cache-first for app shell
+// Network-first for the Apps Script API (always want fresh data), cache-first
+// for everything else in the app shell (so the app opens instantly).
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
-  if (url.indexOf('script.google.com') !== -1) return; // never cache backend API
+  if (url.indexOf('script.google.com') !== -1) return; // never cache API calls
 
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
@@ -43,7 +45,9 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ---------------------------------------------------------------------------
-// PUSH NOTIFICATIONS (Firebase Cloud Messaging + Native Web Push)
+// PUSH NOTIFICATIONS (Firebase Cloud Messaging)
+// firebase-config.js defines FIREBASE_CONFIG — loaded here via importScripts
+// so this one config object is shared with app.js instead of duplicated.
 // ---------------------------------------------------------------------------
 try {
   importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
@@ -55,79 +59,28 @@ try {
     const messaging = firebase.messaging();
 
     messaging.onBackgroundMessage((payload) => {
-      const notification = payload.notification || {};
-      const data = payload.data || {};
-      
-      const title = notification.title || data.title || 'Baitul Hikmah';
-      const body = notification.body || data.body || 'You have a new library update.';
-      const clickUrl = data.url || './#profile';
-
-      const options = {
+      const title = (payload.notification && payload.notification.title) || 'Baitul Hikmah';
+      const body = (payload.notification && payload.notification.body) || '';
+      self.registration.showNotification(title, {
         body: body,
         icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
-        vibrate: [200, 100, 200, 100, 200], // BOLD mobile vibration
-        requireInteraction: true,           // Stays on screen until tapped
-        renotify: true,
-        tag: data.tag || 'bh-notification-' + Date.now(),
-        data: { url: clickUrl }
-      };
-
-      return self.registration.showNotification(title, options);
+        badge: './icons/icon-192.png'
+      });
     });
   }
 } catch (e) {
-  console.warn('Firebase Messaging SW error:', e);
+  // Firebase not configured yet — the rest of the app still works fine
+  // without push notifications until firebase-config.js is filled in.
 }
-
-// Fallback for native Web Push API payload
-self.addEventListener('push', (event) => {
-  if (event.data) {
-    try {
-      const payload = event.data.json();
-      const title = payload.title || payload.notification?.title || 'Baitul Hikmah';
-      const body = payload.body || payload.notification?.body || '';
-      const clickUrl = payload.url || payload.data?.url || './#profile';
-
-      event.waitUntil(
-        self.registration.showNotification(title, {
-          body: body,
-          icon: './icons/icon-192.png',
-          badge: './icons/icon-192.png',
-          vibrate: [200, 100, 200, 100, 200],
-          requireInteraction: true,
-          renotify: true,
-          tag: 'bh-push-' + Date.now(),
-          data: { url: clickUrl }
-        })
-      );
-    } catch (err) {
-      // Plain text payload fallback
-      const text = event.data.text();
-      event.waitUntil(
-        self.registration.showNotification('Baitul Hikmah', {
-          body: text,
-          icon: './icons/icon-192.png',
-          vibrate: [200, 100, 200]
-        })
-      );
-    }
-  }
-});
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './#profile';
-
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    self.clients.matchAll({ type: 'window' }).then((clientList) => {
       for (const client of clientList) {
-        if ('focus' in client) {
-          client.navigate(targetUrl);
-          return client.focus();
-        }
+        if ('focus' in client) return client.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      if (self.clients.openWindow) return self.clients.openWindow('./');
     })
   );
 });
