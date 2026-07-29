@@ -22,8 +22,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Baitul Hikmah">
 
-<!-- Firebase (only used for push notifications — safe to leave as-is even
-     before firebase-config.js is filled in; the app works fine without it) -->
+<!-- Firebase App & Messaging SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
@@ -37,12 +36,31 @@
 </div>
 
 <!-- ============================================================
+     LIVE FOREGROUND NOTIFICATION BANNER (App open)
+     ============================================================ -->
+<div id="liveNotifBanner" class="live-notif-banner hidden">
+  <div class="live-notif-icon">🔔</div>
+  <div class="live-notif-content">
+    <div id="liveNotifTitle" class="live-notif-title"></div>
+    <div id="liveNotifBody" class="live-notif-body"></div>
+  </div>
+  <button id="closeLiveNotifBtn" class="live-notif-close">&times;</button>
+</div>
+
+<!-- ============================================================
      TOP APP BAR — always visible once logged in
      ============================================================ -->
 <header id="topbar" class="topbar hidden">
   <button id="backBtn" class="icon-btn hidden" aria-label="Back">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
+  
+  <!-- Notification Bell Button -->
+  <button id="notifBellBtn" class="icon-btn notif-bell-btn" aria-label="Notifications">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span id="notifBadge" class="notif-badge hidden">0</span>
+  </button>
+
   <div class="topbar-title">Baitul Hikmah</div>
   <button id="topRightBtn" class="avatar-btn" aria-label="Account">
     <img id="topRightAvatar" src="" alt="">
@@ -239,6 +257,18 @@
 </section>
 
 <!-- ============================================================
+     NOTIFICATION CENTER MODAL
+     ============================================================ -->
+<div id="notifModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <button class="modal-close" id="closeNotifModalBtn">&times;</button>
+    <h3>Notifications</h3>
+    <div id="notifList" class="notif-list empty-hint">No notifications yet.</div>
+  </div>
+</div>
+
+<!-- ============================================================
      BOOK DETAIL MODAL
      ============================================================ -->
 <div id="bookModal" class="modal hidden">
@@ -271,8 +301,7 @@
 </div>
 
 <!-- ============================================================
-     EDIT BOOK DETAILS POPUP (used for both a pending upload
-     and an already-uploaded book you own)
+     EDIT BOOK DETAILS POPUP
      ============================================================ -->
 <div id="editMetaModal" class="modal hidden">
   <div class="modal-backdrop"></div>
@@ -304,8 +333,7 @@
   <p class="form-hint">
     Pick as many photos as you like. Each one is automatically resized to
     stay under 500KB. Tap a cover afterwards to add its name, writer and
-    publisher — or skip that and fill it in anytime later from the book's
-    page using the pencil icon.
+    publisher.
   </p>
   <input type="file" id="bookFilesInput" accept="image/*" multiple>
   <p id="compressStatus" class="form-hint hidden"></p>
@@ -332,7 +360,7 @@
     <span>Add</span>
   </button>
   <button class="nav-btn" data-page="members">
-    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Members</span>
   </button>
 </nav>
@@ -340,9 +368,7 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- ============================================================
-     INSTALL APP BANNER — Android shows a real "Install" button;
-     iPhone gets manual Add-to-Home-Screen instructions (Apple
-     doesn't allow websites to trigger this automatically).
+     INSTALL APP BANNER
      ============================================================ -->
 <div id="installBanner" class="install-banner hidden">
   <span id="installBannerText">Install Baitul Hikmah as an app for quick access.</span>
