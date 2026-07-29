@@ -714,3 +714,96 @@ $('backBtn').onclick = () => goPage('profile');
   // while still feeling instant on a normal connection.
   setTimeout(hideBootLoader, 250);
 })();
+
+// ============================================================ PWA INSTALL ==
+// Android/Chrome fires this event when the app is installable — we capture
+// it and trigger it ourselves from our own "Install" button instead of
+// waiting for the browser's default mini-bar.
+let deferredInstallPrompt = null;
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!isStandalone && !localStorage.getItem('bh_install_dismissed')) {
+    $('installBanner').classList.remove('hidden');
+  }
+});
+
+if (isIos && !isStandalone && !localStorage.getItem('bh_install_dismissed')) {
+  $('installBannerText').textContent = 'Add Baitul Hikmah to your Home Screen: tap the Share icon, then "Add to Home Screen".';
+  $('installBannerBtn').textContent = 'Got it';
+  $('installBanner').classList.remove('hidden');
+}
+
+$('installBannerBtn').onclick = async () => {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+  }
+  $('installBanner').classList.add('hidden');
+};
+$('installBannerDismiss').onclick = () => {
+  localStorage.setItem('bh_install_dismissed', '1');
+  $('installBanner').classList.add('hidden');
+};
+
+// ==================================================== PUSH NOTIFICATIONS ==
+// Uses Firebase Cloud Messaging (see firebase-config.js + README "Notifications
+// Setup"). If firebase-config.js hasn't been filled in yet, this quietly
+// does nothing — the rest of the app is unaffected either way.
+function firebaseIsConfigured() {
+  return typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_YOUR') !== 0;
+}
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.register('sw.js');
+  } catch (err) {
+    console.warn('Service worker registration failed:', err);
+    return null;
+  }
+}
+
+async function maybeShowNotifBanner() {
+  if (!firebaseIsConfigured()) return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
+  if (localStorage.getItem('bh_notif_dismissed')) return;
+  $('notifBanner').classList.remove('hidden');
+}
+
+$('notifBannerBtn').onclick = () => guardedAction('enable-notifs', $('notifBannerBtn'), async () => {
+  $('notifBanner').classList.add('hidden');
+  await enablePushNotifications();
+});
+$('notifBannerDismiss').onclick = () => {
+  localStorage.setItem('bh_notif_dismissed', '1');
+  $('notifBanner').classList.add('hidden');
+};
+
+async function enablePushNotifications() {
+  if (!firebaseIsConfigured()) { showToast('Notifications aren\u2019t set up yet.'); return; }
+  const reg = await registerServiceWorker();
+  if (!reg) { showToast('Notifications need a supported browser.'); return; }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') { showToast('Notifications permission was not granted.'); return; }
+
+  const app = firebase.initializeApp(FIREBASE_CONFIG, 'main');
+  const messaging = firebase.messaging(app);
+  const token = await messaging.getToken({ vapidKey: FIREBASE_VAPID_KEY, serviceWorkerRegistration: reg });
+  if (!token) { showToast('Could not get a notification token.'); return; }
+
+  if (currentUser) {
+    await api('savePushToken', { pushToken: token });
+  }
+  showToast('Notifications enabled!');
+}
+
+// Kick off service worker registration and (if logged in) the notification
+// prompt, without blocking the rest of the app from loading.
+registerServiceWorker().then(() => { if (currentUser) maybeShowNotifBanner(); });

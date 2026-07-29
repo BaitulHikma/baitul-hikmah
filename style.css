@@ -482,3 +482,23 @@ code {
 @media (min-width: 560px) {
   .page { padding-top: 82px; }
 }
+
+/* ---------------------------------------------------------- INSTALL BANNER */
+.install-banner {
+  position: fixed;
+  left: 12px; right: 12px;
+  bottom: 76px;
+  z-index: 70;
+  background: var(--surface);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  padding: 12px 12px 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-width: 480px;
+  margin: 0 auto;
+}
+.install-banner span { flex: 1; font-size: 0.82rem; color: var(--text-dim); }
+.install-banner .btn { padding: 8px 14px; font-size: 0.82rem; flex-shrink: 0; }

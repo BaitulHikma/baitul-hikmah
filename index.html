@@ -12,6 +12,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="style.css">
+
+<!-- PWA: makes the site installable as an app icon on Android and iPhone -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0f0d">
+<link rel="icon" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Baitul Hikmah">
+
+<!-- Firebase (only used for push notifications — safe to leave as-is even
+     before firebase-config.js is filled in; the app works fine without it) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
@@ -325,7 +339,28 @@
 
 <div id="toast" class="toast hidden"></div>
 
+<!-- ============================================================
+     INSTALL APP BANNER — Android shows a real "Install" button;
+     iPhone gets manual Add-to-Home-Screen instructions (Apple
+     doesn't allow websites to trigger this automatically).
+     ============================================================ -->
+<div id="installBanner" class="install-banner hidden">
+  <span id="installBannerText">Install Baitul Hikmah as an app for quick access.</span>
+  <button id="installBannerBtn" class="btn btn-primary">Install</button>
+  <button id="installBannerDismiss" class="icon-btn" aria-label="Dismiss">&times;</button>
+</div>
+
+<!-- ============================================================
+     NOTIFICATION PERMISSION BANNER
+     ============================================================ -->
+<div id="notifBanner" class="install-banner hidden">
+  <span>Get notified about borrow requests and returns.</span>
+  <button id="notifBannerBtn" class="btn btn-primary">Enable</button>
+  <button id="notifBannerDismiss" class="icon-btn" aria-label="Dismiss">&times;</button>
+</div>
+
 <script src="config.js"></script>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
