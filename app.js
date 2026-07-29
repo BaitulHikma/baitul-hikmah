@@ -798,12 +798,34 @@ async function enablePushNotifications() {
   const token = await messaging.getToken({ vapidKey: FIREBASE_VAPID_KEY, serviceWorkerRegistration: reg });
   if (!token) { showToast('Could not get a notification token.'); return; }
 
+  // Data-only messages don't auto-display while the app tab is actually
+  // open (that only happens in the background via sw.js) — so we show it
+  // ourselves here, just as boldly, and refresh whatever's on screen.
+  messaging.onMessage((payload) => {
+    const title = (payload.data && payload.data.title) || 'Baitul Hikmah';
+    const body = (payload.data && payload.data.body) || '';
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body, icon: 'icons/icon-192.png', requireInteraction: true });
+    } else {
+      showToast(title + ': ' + body);
+    }
+    if (currentUser && (location.hash.slice(1) || 'profile') === 'profile') refreshProfile();
+  });
+
   if (currentUser) {
     await api('savePushToken', { pushToken: token });
   }
   showToast('Notifications enabled!');
 }
 
-// Kick off service worker registration and (if logged in) the notification
-// prompt, without blocking the rest of the app from loading.
-registerServiceWorker().then(() => { if (currentUser) maybeShowNotifBanner(); });
+// Kick off service worker registration. If notifications were already
+// granted in a previous visit, quietly refresh the token (FCM tokens can
+// rotate) — otherwise, offer the banner if logged in.
+registerServiceWorker().then(() => {
+  if (!currentUser) return;
+  if (firebaseIsConfigured() && 'Notification' in window && Notification.permission === 'granted') {
+    enablePushNotifications();
+  } else {
+    maybeShowNotifBanner();
+  }
+});

@@ -59,12 +59,16 @@ try {
     const messaging = firebase.messaging();
 
     messaging.onBackgroundMessage((payload) => {
-      const title = (payload.notification && payload.notification.title) || 'Baitul Hikmah';
-      const body = (payload.notification && payload.notification.body) || '';
+      // Data-only payload — see Code.gs sendPushToUser_ for why (avoids
+      // duplicate notifications, keeps display fully under our control).
+      const title = (payload.data && payload.data.title) || 'Baitul Hikmah';
+      const body = (payload.data && payload.data.body) || '';
       self.registration.showNotification(title, {
         body: body,
         icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png'
+        badge: './icons/icon-192.png',
+        requireInteraction: true,   // stays on screen until tapped/dismissed
+        vibrate: [200, 100, 200]    // Android: a noticeable double-buzz
       });
     });
   }
