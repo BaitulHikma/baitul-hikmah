@@ -4,7 +4,7 @@
 // (2) receive push notifications sent from Code.gs via Firebase.
 // ============================================================================
 
-const CACHE_NAME = 'baitul-hikmah-v1';
+const CACHE_NAME = 'baitul-hikmah-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -64,7 +64,10 @@ try {
       self.registration.showNotification(title, {
         body: body,
         icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png'
+        badge: './icons/icon-192.png',
+        vibrate: [200, 100, 200, 100, 200, 100, 200], // Makes phone vibrate
+        requireInteraction: true,                      // Prevents notification from auto-dismissing
+        tag: 'bh-notification'
       });
     });
   }
