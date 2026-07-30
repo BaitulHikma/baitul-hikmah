@@ -611,7 +611,7 @@ $('bookFilesInput').onchange = async () => {
   for (let i = 0; i < files.length; i++) {
     statusEl.textContent = 'Compressing image ' + (i + 1) + ' of ' + files.length + '…';
     try {
-      const base64 = await compressImage(files[i], 500);
+      const base64 = await compressImage(files[i], 100);
       pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '' });
     } catch (err) {
       showToast('Skipped one image: ' + err.message);
