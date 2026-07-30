@@ -801,11 +801,24 @@ async function enablePushNotifications() {
   // Data-only messages don't auto-display while the app tab is actually
   // open (that only happens in the background via sw.js) — so we show it
   // ourselves here, just as boldly, and refresh whatever's on screen.
+  //
+  // IMPORTANT: this uses reg.showNotification() (the service-worker route),
+  // NOT `new Notification()`. iOS Safari does not support triggering
+  // notifications via the page-level Notification constructor at all —
+  // only through a service worker registration. Using showNotification()
+  // here means foreground notifications work identically on Android and
+  // iPhone, instead of silently failing on iPhone specifically.
   messaging.onMessage((payload) => {
     const title = (payload.data && payload.data.title) || 'Baitul Hikmah';
     const body = (payload.data && payload.data.body) || '';
-    if (Notification.permission === 'granted') {
-      new Notification(title, { body, icon: 'icons/icon-192.png', requireInteraction: true });
+    if (Notification.permission === 'granted' && reg && reg.showNotification) {
+      reg.showNotification(title, {
+        body,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        requireInteraction: true,
+        vibrate: [200, 100, 200]
+      });
     } else {
       showToast(title + ': ' + body);
     }
