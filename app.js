@@ -288,6 +288,12 @@ async function refreshProfile() {
     profileData = data;
     $('profileIdNum').textContent = data.profile.id;
     $('profileGreeting').textContent = "Assalamu a'laikum ya shabab! " + data.profile.displayName;
+    $('profileDpImg').src = driveImg(data.profile.dpFileId);
+    $('profileLevelBadge').textContent = 'Lv ' + data.profile.level;
+    $('profileBioLine').textContent = data.profile.bio || '';
+    $('profileBioLine').classList.toggle('hidden', !data.profile.bio);
+    $('totalSuccessfulBorrows').textContent = data.totalSuccessfulBorrows;
+    $('totalSuccessfulReturns').textContent = data.totalSuccessfulReturns;
     $('myBooksCount').textContent = data.profile.myBooksCount;
     $('borrowedCount').textContent = data.profile.borrowedCount;
     $('lentOutCount').textContent = data.profile.lentOutCount;
@@ -609,19 +615,46 @@ async function refreshMembers() {
   try {
     const data = await api('listMembers', {});
     allMembers = data.members;
-    $('membersList').innerHTML = allMembers.map(m => `
+
+    const lb = data.leaderboard || {};
+    const lbParts = [];
+    if (lb.topOwner) lbParts.push(`<div class="lb-item">📚 <b>${escapeHtml(lb.topOwner.name)}</b> — top owner (${lb.topOwner.count})</div>`);
+    if (lb.topBorrower) lbParts.push(`<div class="lb-item">🤝 <b>${escapeHtml(lb.topBorrower.name)}</b> — top borrower (${lb.topBorrower.count})</div>`);
+    if (lb.topRequester) lbParts.push(`<div class="lb-item">🙋 <b>${escapeHtml(lb.topRequester.name)}</b> — most active (${lb.topRequester.count})</div>`);
+    const lbEl = $('membersLeaderboard');
+    if (lbParts.length) { lbEl.classList.remove('hidden'); lbEl.innerHTML = lbParts.join(''); }
+    else { lbEl.classList.add('hidden'); }
+
+    $('membersList').innerHTML = allMembers.map(m => {
+      const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
+      const isSelf = currentUser && String(m.id) === String(currentUser.id);
+      return `
       <div class="member-card">
-        <img src="${driveImg(m.dpFileId)}" alt="">
-        <div>
+        <div class="dp-wrap">
+          <img src="${driveImg(m.dpFileId)}" alt="">
+          <span class="level-badge" title="Level ${m.level}">Lv ${m.level}</span>
+        </div>
+        <div class="member-body">
           <div class="name">${escapeHtml(m.displayName)}</div>
+          ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
           <div class="stats">Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}</div>
         </div>
-      </div>`).join('');
+        ${isSelf ? '' : `<button class="salam-btn ${cooldownActive ? 'faded' : ''}" ${cooldownActive ? 'disabled' : ''} onclick="sendSalam(this,'${m.id}')">Send Salam!</button>`}
+      </div>`;
+    }).join('');
   } catch (err) {
     showToast(err.message);
     $('membersList').innerHTML = '';
   }
 }
+
+window.sendSalam = (btn, targetId) => guardedAction('salam-' + targetId, btn, async () => {
+  btn.classList.add('faded');
+  btn.disabled = true;
+  await api('sendSalam', { targetId }).catch(err => { btn.classList.remove('faded'); btn.disabled = false; throw err; });
+  showToast('Salam sent!');
+  setTimeout(() => { btn.classList.remove('faded'); btn.disabled = false; }, 30 * 60 * 1000);
+});
 
 // ======================================================== ADD BOOKS =======
 
@@ -717,6 +750,46 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
   $('addBooksPreview').innerHTML = '';
   $('uploadBooksBtn').disabled = true;
   showToast('Books uploaded!');
+  if (data.leveledUp) showToast('🎉 Level up! You reached Level ' + data.newLevel + '!');
+});
+
+// ==================================================== EDIT PROFILE (#20) ==
+let editProfilePendingDp = null;
+
+$('openEditProfileBtn').onclick = () => {
+  editProfilePendingDp = null;
+  $('editProfileName').value = currentUser.displayName || '';
+  $('editProfileBio').value = currentUser.bio || '';
+  $('editProfileDpPreview').src = driveImg(currentUser.dpFileId);
+  $('editProfileModal').classList.remove('hidden');
+};
+$('closeEditProfileBtn').onclick = () => $('editProfileModal').classList.add('hidden');
+$('editProfileModal').querySelector('.modal-backdrop').onclick = () => $('editProfileModal').classList.add('hidden');
+
+$('editProfileDpInput').onchange = async () => {
+  const file = $('editProfileDpInput').files[0];
+  if (!file) return;
+  try {
+    editProfilePendingDp = await compressImage(file, 100);
+    $('editProfileDpPreview').src = editProfilePendingDp;
+  } catch (err) {
+    showToast('Could not use that image: ' + err.message);
+  }
+};
+
+$('editProfileSaveBtn').onclick = (e) => guardedAction('editprofile', e.target, async () => {
+  const displayName = $('editProfileName').value.trim();
+  const bio = $('editProfileBio').value.trim();
+  if (!displayName) { showToast('Name cannot be empty.'); return; }
+
+  const payload = { displayName, bio };
+  if (editProfilePendingDp) payload.dpBase64 = editProfilePendingDp;
+
+  const data = await api('editProfile', payload);
+  saveSession(data.user);
+  $('editProfileModal').classList.add('hidden');
+  showToast('Profile updated.');
+  refreshProfile();
 });
 
 // ============================================================ NAVIGATION ==
