@@ -188,22 +188,27 @@
     </button>
   </div>
 
-  <div class="feed-section">
+  <div class="feed-section" id="incomingRequestsSection">
     <h3>Requested — waiting on your approval</h3>
     <div id="incomingRequestsList" class="card-list empty-hint">No incoming requests.</div>
   </div>
 
-  <div class="feed-section">
+  <div class="feed-section" id="outgoingRequestsSection">
     <h3>Requesting — waiting on the owner</h3>
     <div id="outgoingRequestsList" class="card-list empty-hint">No outgoing requests.</div>
   </div>
 
-  <div class="feed-section">
+  <div class="feed-section" id="borrowedSection">
     <h3>Borrowed by you</h3>
     <div id="borrowedList" class="card-list empty-hint">No borrowed books.</div>
   </div>
 
-  <div class="feed-section">
+  <div class="feed-section" id="lentOutSection">
+    <h3>Lent out</h3>
+    <div id="lentOutList" class="card-list empty-hint">No books lent out.</div>
+  </div>
+
+  <div class="feed-section" id="returnRequestsSection">
     <h3>Return requests — confirm the book came back</h3>
     <div id="returnRequestsList" class="card-list empty-hint">No return requests.</div>
   </div>
@@ -293,6 +298,10 @@
       <label>Publisher</label>
       <input type="text" id="editMetaPublisher">
     </div>
+    <div class="field">
+      <label>Page count</label>
+      <input type="number" id="editMetaPageCount" min="1" inputmode="numeric" placeholder="e.g. 320">
+    </div>
     <button id="editMetaSaveBtn" class="btn btn-primary btn-wide">Save</button>
   </div>
 </div>
@@ -320,13 +329,13 @@
      BOTTOM NAVIGATION
      ============================================================ -->
 <nav id="bottomNav" class="bottom-nav hidden">
-  <button class="nav-btn" data-page="explore">
-    <svg viewBox="0 0 24 24"><path d="M4 4h7v16H4zM13 4h7v16h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-    <span>Explore</span>
-  </button>
   <button class="nav-btn" data-page="profile">
     <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Profile</span>
+  </button>
+  <button class="nav-btn" data-page="explore">
+    <svg viewBox="0 0 24 24"><path d="M4 4h7v16H4zM13 4h7v16h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    <span>Explore</span>
   </button>
   <button class="nav-btn" data-page="addbooks">
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>

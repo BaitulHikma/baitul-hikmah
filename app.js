@@ -297,6 +297,7 @@ async function refreshProfile() {
     renderRequestFeed('incomingRequestsList', data.incomingRequests, 'incoming');
     renderRequestFeed('outgoingRequestsList', data.outgoingRequests, 'outgoing');
     renderRequestFeed('borrowedList', data.borrowedBooks, 'borrowed');
+    renderRequestFeed('lentOutList', data.lentOutBooks, 'lentout');
     renderRequestFeed('returnRequestsList', data.returnRequests, 'return');
   } catch (err) {
     showToast(err.message);
@@ -305,16 +306,20 @@ async function refreshProfile() {
 
 function renderRequestFeed(containerId, items, kind) {
   const el = $(containerId);
-  const emptyText = {
-    incoming: 'No incoming requests.', outgoing: 'No outgoing requests.',
-    borrowed: 'No borrowed books.', return: 'No return requests.'
-  }[kind];
+  const sectionMap = {
+    incoming: 'incomingRequestsSection', outgoing: 'outgoingRequestsSection',
+    borrowed: 'borrowedSection', lentout: 'lentOutSection', return: 'returnRequestsSection'
+  };
+  const section = $(sectionMap[kind]);
 
+  // Per-user request: don't clutter the profile with section headers that
+  // have nothing under them — only show a section when it's actually active.
   if (!items || !items.length) {
-    el.classList.add('empty-hint');
-    el.textContent = emptyText;
+    if (section) section.classList.add('hidden');
     return;
   }
+  if (section) section.classList.remove('hidden');
+
   el.classList.remove('empty-hint');
   el.innerHTML = items.map(r => {
     let actions = '';
@@ -337,13 +342,19 @@ function renderRequestFeed(containerId, items, kind) {
         <button class="req-approve" onclick="event.stopPropagation(); confirmReturn(this,'${r.requestId}')">Confirm returned</button>
       </div>`;
     }
+    // "lentout" (books I own that are currently out) has no action buttons —
+    // the actual return confirmation lives in the "return" section above once
+    // the borrower asks for it back; this one is just informational.
+    const dateOrBlank = (label, d) => formatDate(d) ? ` · ${label} ${formatDate(d)}` : '';
     const personLine = kind === 'incoming'
-      ? `From ${r.requesterName || 'Unknown'} · ${r.durationDays} days`
+      ? `From ${r.requesterName || 'Unknown'} · asked for ${r.durationDays} days${dateOrBlank('requested', r.requestDate)}`
       : kind === 'outgoing'
-      ? `Owner: ${r.ownerName || 'Unknown'} · ${r.durationDays} days`
+      ? `Owner: ${r.ownerName || 'Unknown'} · asked for ${r.durationDays} days${dateOrBlank('requested', r.requestDate)}`
       : kind === 'return'
-      ? `Borrower: ${r.requesterName || 'Unknown'}`
-      : `Owner: ${r.ownerName || 'Unknown'} · ${r.daysLeft != null ? r.daysLeft + ' days left' : ''}`;
+      ? `Borrower: ${r.requesterName || 'Unknown'}${dateOrBlank('asked to return', r.returnRequestedDate)}`
+      : kind === 'lentout'
+      ? `Borrower: ${r.requesterName || 'Unknown'}${dateOrBlank('since', r.approvedDate)}${dateOrBlank('due', r.dueDate)}`
+      : `Owner: ${r.ownerName || 'Unknown'}${dateOrBlank('since', r.approvedDate)}${r.daysLeft != null ? ' · ' + r.daysLeft + ' days left' : ''}`;
     return `<div class="req-card" onclick="viewBookFromProfile('${r.bookId}')">
       <img src="${driveImg(r.imageFileId)}" alt="">
       <div class="req-card-body">
@@ -461,7 +472,11 @@ function renderBookGrid() {
       const borrowedIds = (profileData && profileData.borrowedBooks || []).map(r => r.bookId);
       list = list.filter(b => borrowedIds.includes(b.bookId));
     }
-    if (q) list = list.filter(b => (b.bookName || '').toLowerCase().includes(q));
+    if (q) list = list.filter(b =>
+      (b.bookName || '').toLowerCase().includes(q) ||
+      (b.writer || '').toLowerCase().includes(q) ||
+      (b.ownerName || '').toLowerCase().includes(q)
+    );
   }
 
   const grid = $('bookGrid');
@@ -470,13 +485,19 @@ function renderBookGrid() {
     return;
   }
   grid.innerHTML = list.map(b => {
-    const statusText = b.status === 'available' ? 'Available' : 'Unavailable till ' + formatDate(b.dueDate);
+    const statusText = b.status === 'available'
+      ? 'Available'
+      : 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + escapeHtml(b.borrowerName) : '');
     const statusClass = b.status === 'available' ? 'available' : 'unavailable';
+    const pageBadge = b.pageCount ? `<div class="page-count-badge">${escapeHtml(String(b.pageCount))}p</div>` : '';
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
-      <img src="${driveImg(b.imageFileId)}" alt="">
+      <div class="book-cover-wrap">
+        <img src="${driveImg(b.imageFileId)}" alt="">
+        ${pageBadge}
+      </div>
       <div class="book-card-body">
         <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
-        <div class="sub">${escapeHtml(b.publisher || '')}</div>
+        <div class="sub">${escapeHtml(b.writer || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
       </div>
@@ -497,7 +518,7 @@ window.openBookModal = (bookId) => {
     $('modalImage').src = driveImg(b.imageFileId);
     $('modalBookName').textContent = b.bookName || 'Untitled book';
     $('modalWriter').textContent = 'Writer: ' + (b.writer || '—');
-    $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—');
+    $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—') + (b.pageCount ? ' · ' + b.pageCount + ' pages' : '');
     $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');
 
     const statusEl = $('modalStatus');
@@ -516,10 +537,12 @@ window.openBookModal = (bookId) => {
 
     if (b.isMine) {
       editIcon.classList.remove('hidden');
-      statusEl.textContent = b.status === 'available' ? 'This is your book — available.' : 'Currently lent out — due ' + formatDate(b.dueDate);
+      statusEl.textContent = b.status === 'available'
+        ? 'This is your book — available.'
+        : 'Currently lent out' + (b.borrowerName ? ' to ' + b.borrowerName : '') + ' — due ' + formatDate(b.dueDate);
       deleteBtn.classList.remove('hidden');
     } else if (b.status !== 'available') {
-      statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate);
+      statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + b.borrowerName : '');
     } else if (b.myPendingRequestId) {
       statusEl.textContent = 'You already requested this book.';
       cancelBtn.classList.remove('hidden');
@@ -575,6 +598,7 @@ $('modalEditIconBtn').onclick = () => {
   $('editMetaName').value = activeModalBook.bookName || '';
   $('editMetaWriter').value = activeModalBook.writer || '';
   $('editMetaPublisher').value = activeModalBook.publisher || '';
+  $('editMetaPageCount').value = activeModalBook.pageCount || '';
   $('editMetaModal').classList.remove('hidden');
 };
 
@@ -612,13 +636,13 @@ $('bookFilesInput').onchange = async () => {
     statusEl.textContent = 'Compressing image ' + (i + 1) + ' of ' + files.length + '…';
     try {
       const base64 = await compressImage(files[i], 100);
-      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '' });
+      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '', pageCount: '' });
     } catch (err) {
       showToast('Skipped one image: ' + err.message);
     }
     renderAddPreview();
   }
-  statusEl.textContent = pendingBookFiles.length + ' image(s) ready — under 500KB each.';
+  statusEl.textContent = pendingBookFiles.length + ' image(s) ready — under 100KB each.';
   setTimeout(() => statusEl.classList.add('hidden'), 2000);
 };
 
@@ -646,6 +670,7 @@ window.openEditMetaForPending = (index) => {
   $('editMetaName').value = pf.bookName || '';
   $('editMetaWriter').value = pf.writer || '';
   $('editMetaPublisher').value = pf.publisher || '';
+  $('editMetaPageCount').value = pf.pageCount || '';
   $('editMetaModal').classList.remove('hidden');
 };
 
@@ -657,10 +682,11 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   const bookName = $('editMetaName').value.trim();
   const writer = $('editMetaWriter').value.trim();
   const publisher = $('editMetaPublisher').value.trim();
+  const pageCount = $('editMetaPageCount').value.trim();
 
   if (editMetaContext.mode === 'pending') {
     const pf = pendingBookFiles[editMetaContext.index];
-    if (pf) { pf.bookName = bookName; pf.writer = writer; pf.publisher = publisher; }
+    if (pf) { pf.bookName = bookName; pf.writer = writer; pf.publisher = publisher; pf.pageCount = pageCount; }
     $('editMetaModal').classList.add('hidden');
     renderAddPreview();
     return;
@@ -669,10 +695,10 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   // mode === 'existing': this book is already in the library — save to the server.
   const bookId = editMetaContext.bookId;
   $('editMetaModal').classList.add('hidden');
-  await api('editBook', { bookId, bookName, writer, publisher });
+  await api('editBook', { bookId, bookName, writer, publisher, pageCount });
   showToast('Book details updated.');
   if (activeModalBook && activeModalBook.bookId === bookId) {
-    activeModalBook.bookName = bookName; activeModalBook.writer = writer; activeModalBook.publisher = publisher;
+    activeModalBook.bookName = bookName; activeModalBook.writer = writer; activeModalBook.publisher = publisher; activeModalBook.pageCount = pageCount;
     openBookModal(bookId);
   }
   refreshBooks();
