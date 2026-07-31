@@ -470,6 +470,11 @@ code {
 
 /* ---------------------------------------------------------------- MODAL */
 .modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+/* These two can be opened FROM WITHIN the book detail modal, but appear
+   earlier in the page's HTML — without an explicit higher z-index they'd
+   silently render BEHIND it (same z-index falls back to DOM order), which
+   both hides them visually and blocks clicks from ever reaching them. */
+#waConfirmModal, #staffPanelModal { z-index: 75; }
 .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
 .modal-sheet {
   position: relative;

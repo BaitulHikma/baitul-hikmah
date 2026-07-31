@@ -658,6 +658,7 @@ $('waConfirmSubmitBtn').onclick = (e) => guardedAction('waconfirm', e.target, as
     return;
   }
   $('waConfirmModal').classList.add('hidden');
+  $('bookModal').classList.add('hidden');
   const wa = String(data.whatsapp || '').replace(/[^0-9]/g, '');
   if (wa) window.open('https://wa.me/' + wa, '_blank', 'noopener');
 });
@@ -1012,6 +1013,8 @@ $('backBtn').onclick = () => goPage('profile');
 
 // ========================================================= STAFF PANEL ====
 
+let lastStaffPanelData = null;
+
 $('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanelBtn'), async () => {
   let data;
   try {
@@ -1020,6 +1023,7 @@ $('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanel
     showToast(err.message);
     return;
   }
+  lastStaffPanelData = data;
   renderStaffMembers(data);
   renderStaffLog(data.whatsappAccessLog);
   $('staffPanelModal').classList.remove('hidden');
@@ -1044,8 +1048,8 @@ function renderStaffMembers(data) {
         <div class="meta">${escapeHtml(m.email)}</div>
       </div>
       <div class="req-card-actions">
-        ${data.isAdmin ? `<button class="req-cancel" onclick="toggleModerator('${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove mod' : 'Make mod'}</button>` : ''}
-        <button class="req-cancel" onclick="toggleHidden('user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide' : 'Hide'}</button>
+        ${data.isAdmin ? `<button class="req-cancel" onclick="toggleModerator(this,'${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove mod' : 'Make mod'}</button>` : ''}
+        <button class="req-cancel" onclick="toggleHidden(this,'user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide' : 'Hide'}</button>
       </div>
     </div>`).join('');
 }
@@ -1061,17 +1065,34 @@ function renderStaffLog(log) {
     </div>`).join('');
 }
 
-window.toggleModerator = (userId, makeModerator) => guardedAction('setmod-' + userId, null, async () => {
-  await api('setModerator', { targetUserId: userId, makeModerator });
-  const data = await api('getStaffPanel', {});
-  renderStaffMembers(data);
-  showToast('Updated.');
+// Optimistic: flip the badge instantly and save quietly in the background —
+// same pattern as the rest of the app (approve/reject/etc). On failure we
+// revert the local copy and re-render so the UI never lies about the state.
+window.toggleModerator = (btn, userId, makeModerator) => guardedAction('setmod-' + userId, btn, async () => {
+  const m = lastStaffPanelData.members.find(x => x.id === userId);
+  if (!m) return;
+  const prevRole = m.role;
+  m.role = makeModerator ? 'moderator' : '';
+  renderStaffMembers(lastStaffPanelData);
+  try {
+    await api('setModerator', { targetUserId: userId, makeModerator });
+  } catch (err) {
+    m.role = prevRole;
+    renderStaffMembers(lastStaffPanelData);
+    throw err;
+  }
 });
-window.toggleHidden = (targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, null, async () => {
-  await api('setHidden', { targetType, targetId, hidden });
-  const data = await api('getStaffPanel', {});
-  renderStaffMembers(data);
-  showToast('Updated.');
+window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, btn, async () => {
+  const list = targetType === 'book' ? [] : lastStaffPanelData.members;
+  const m = list.find(x => x.id === targetId);
+  const prevHidden = m ? m.hidden : null;
+  if (m) { m.hidden = hidden; renderStaffMembers(lastStaffPanelData); }
+  try {
+    await api('setHidden', { targetType, targetId, hidden });
+  } catch (err) {
+    if (m) { m.hidden = prevHidden; renderStaffMembers(lastStaffPanelData); }
+    throw err;
+  }
 });
 
 (function boot() {
