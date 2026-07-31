@@ -194,10 +194,6 @@
       <span class="cube-num" id="cubeMemberCount">0</span>
       <span class="cube-label">Members</span>
     </button>
-    <button class="cube" id="liveUpdateCube">
-      <span class="cube-icon">📡</span>
-      <span class="cube-label">Live Update</span>
-    </button>
   </div>
 
   <button class="btn btn-primary btn-wide add-book-cta" id="addBookCta">+ Add Books!</button>
@@ -270,8 +266,16 @@
      ============================================================ -->
 <section id="page-members" class="page hidden">
   <h2 class="page-title">Members</h2>
-  <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
-  <div id="membersList" class="member-list"></div>
+  <div class="members-layout">
+    <div class="members-main">
+      <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
+      <div id="membersList" class="member-list"></div>
+    </div>
+    <div class="live-update-panel">
+      <h3 class="live-update-title">📡 Live Update</h3>
+      <div id="liveUpdateList" class="notif-list empty-hint">Loading…</div>
+    </div>
+  </div>
 </section>
 
 <!-- ============================================================
@@ -373,16 +377,6 @@
     <button class="modal-close" id="closeNotifBtn">&times;</button>
     <h3>Notifications</h3>
     <div id="notifList" class="notif-list empty-hint">Loading…</div>
-  </div>
-</div>
-
-<div id="liveUpdateModal" class="modal hidden">
-  <div class="modal-backdrop"></div>
-  <div class="modal-sheet notif-sheet">
-    <button class="modal-close" id="closeLiveUpdateBtn">&times;</button>
-    <h3>Live Update</h3>
-    <p class="modal-sub">What's happening in the community right now</p>
-    <div id="liveUpdateList" class="notif-list empty-hint">Loading…</div>
   </div>
 </div>
 

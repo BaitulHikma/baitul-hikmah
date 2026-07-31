@@ -45,6 +45,38 @@ function formatDate(d) {
   return dt.toLocaleDateString();
 }
 
+// FB-style relative time: "Just now", "5m", "3h", "2d", then falls back to
+// a real date once it's old enough that "Nd" stops being useful.
+function timeAgo(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  const diffSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+  if (diffSec < 60) return 'Just now';
+  if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm';
+  if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h';
+  if (diffSec < 604800) return Math.floor(diffSec / 86400) + 'd';
+  return dt.toLocaleDateString();
+}
+
+// Picks a small emoji "avatar" for a notification/update row based on
+// keywords in its text — purely cosmetic, mirrors how FB notifications use
+// an icon badge to hint at the action type at a glance.
+function pickEventIcon(text) {
+  const t = (text || '').toLowerCase();
+  if (t.includes('level up') || t.includes('reached level')) return '🎉';
+  if (t.includes('salam')) return '👋';
+  if (t.includes('return')) return '↩️';
+  if (t.includes('borrow') && t.includes('sent')) return '📨';
+  if (t.includes('borrow') || t.includes('ready')) return '🤝';
+  if (t.includes('declined') || t.includes('rejected') || t.includes('cancel')) return '❌';
+  if (t.includes('approved')) return '✅';
+  if (t.includes('added') || t.includes('library')) return '📚';
+  if (t.includes('joined')) return '🌟';
+  if (t.includes('hadith')) return '🕌';
+  return '🔔';
+}
+
 // ---------------------------------------------------- DOUBLE-TAP GUARD ----
 // Every action in the app (button click or form submit) runs through this.
 // While a call for a given "key" is in flight, repeat taps are ignored —
@@ -183,7 +215,7 @@ function renderPage(name) {
 
   if (name === 'profile') refreshProfile();
   if (name === 'explore') refreshBooks();
-  if (name === 'members') refreshMembers();
+  if (name === 'members') { refreshMembers(); refreshLiveUpdates(); }
 
   window.scrollTo(0, 0);
 }
@@ -546,58 +578,78 @@ window.openBookModal = (bookId) => {
     $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—') + (b.pageCount ? ' · ' + b.pageCount + ' pages' : '');
     $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');
 
-    const statusEl = $('modalStatus');
-    const borrowArea = $('modalBorrowArea');
-    const cancelBtn = $('modalCancelReqBtn');
-    const deleteBtn = $('modalDeleteBtn');
-    const editIcon = $('modalEditIconBtn');
-    const waBtn = $('modalWhatsappBtn');
-
-    borrowArea.classList.add('hidden');
-    cancelBtn.classList.add('hidden');
-    deleteBtn.classList.add('hidden');
-    editIcon.classList.add('hidden');
-    waBtn.classList.add('disabled');
-    waBtn.removeAttribute('href');
-
-    if (b.isMine) {
-      editIcon.classList.remove('hidden');
-      statusEl.textContent = b.status === 'available'
-        ? 'This is your book — available.'
-        : 'Currently lent out' + (b.borrowerName ? ' to ' + b.borrowerName : '') + ' — due ' + formatDate(b.dueDate);
-      deleteBtn.classList.remove('hidden');
-    } else if (b.status !== 'available') {
-      statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + b.borrowerName : '');
-    } else if (b.myPendingRequestId) {
-      statusEl.textContent = 'You already requested this book.';
-      cancelBtn.classList.remove('hidden');
-      // A pending request unlocks the WhatsApp button, as specified.
-      const wa = String(b.ownerWhatsapp || '').replace(/[^0-9]/g, '');
-      if (wa) {
-        waBtn.classList.remove('disabled');
-        waBtn.setAttribute('href', 'https://wa.me/' + wa);
-      }
-    } else {
-      statusEl.textContent = 'Available to borrow.';
-      borrowArea.classList.remove('hidden');
-    }
+    renderModalStatusArea(b);
   } catch (err) {
     showToast('Could not load full details — please try again.');
   }
 };
+
+// Split out from openBookModal so an optimistic frontend update (e.g. the
+// WhatsApp button unlocking instantly on request, before the server call
+// even finishes) can re-render just this part without a full reopen.
+function renderModalStatusArea(b) {
+  const statusEl = $('modalStatus');
+  const borrowArea = $('modalBorrowArea');
+  const cancelBtn = $('modalCancelReqBtn');
+  const deleteBtn = $('modalDeleteBtn');
+  const editIcon = $('modalEditIconBtn');
+  const waBtn = $('modalWhatsappBtn');
+
+  borrowArea.classList.add('hidden');
+  cancelBtn.classList.add('hidden');
+  deleteBtn.classList.add('hidden');
+  editIcon.classList.add('hidden');
+  waBtn.classList.add('disabled');
+  waBtn.removeAttribute('href');
+
+  if (b.isMine) {
+    editIcon.classList.remove('hidden');
+    statusEl.textContent = b.status === 'available'
+      ? 'This is your book — available.'
+      : 'Currently lent out' + (b.borrowerName ? ' to ' + b.borrowerName : '') + ' — due ' + formatDate(b.dueDate);
+    deleteBtn.classList.remove('hidden');
+  } else if (b.status !== 'available') {
+    statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + b.borrowerName : '');
+  } else if (b.myPendingRequestId) {
+    statusEl.textContent = 'You already requested this book.';
+    cancelBtn.classList.remove('hidden');
+    // A pending request unlocks the WhatsApp button, as specified.
+    const wa = String(b.ownerWhatsapp || '').replace(/[^0-9]/g, '');
+    if (wa) {
+      waBtn.classList.remove('disabled');
+      waBtn.setAttribute('href', 'https://wa.me/' + wa);
+    }
+  } else {
+    statusEl.textContent = 'Available to borrow.';
+    borrowArea.classList.remove('hidden');
+  }
+}
 
 $('closeModalBtn').onclick = () => $('bookModal').classList.add('hidden');
 $('bookModal').querySelector('.modal-backdrop').onclick = () => $('bookModal').classList.add('hidden');
 
 $('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.bookId, e.target, async () => {
   const book = activeModalBook;
-  $('bookModal').classList.add('hidden');
-  await api('requestBorrow', {
-    bookId: book.bookId,
-    durationDays: parseInt($('modalDuration').value, 10) || 7
-  }).catch(err => { refreshBooks(); throw err; });
+  const duration = parseInt($('modalDuration').value, 10) || 7;
+
+  // Instant optimistic unlock — the person sees the WhatsApp button light up
+  // right away, before the server round-trip even finishes. A temporary
+  // placeholder ID is enough to satisfy the "has a pending request" check;
+  // it gets replaced with the real one below once the server responds.
+  book.myPendingRequestId = 'pending-optimistic';
+  renderModalStatusArea(book);
   showToast('Borrow request sent!');
-  refreshBooks();
+
+  try {
+    const data = await api('requestBorrow', { bookId: book.bookId, durationDays: duration });
+    book.myPendingRequestId = data.requestId || book.myPendingRequestId;
+    refreshBooks();
+  } catch (err) {
+    // Roll back the optimistic unlock if the server actually rejected it.
+    book.myPendingRequestId = null;
+    if (activeModalBook === book) renderModalStatusArea(book);
+    showToast(err.message);
+  }
 });
 
 $('modalCancelReqBtn').onclick = (e) => guardedAction('cancelbook-' + activeModalBook.bookId, e.target, async () => {
@@ -796,10 +848,13 @@ function renderNotifList(data) {
   }
   $('notifList').classList.remove('empty-hint');
   $('notifList').innerHTML = data.notifications.map(n => `
-    <div class="notif-item ${n.read ? '' : 'unread'}">
-      <div class="notif-title">${escapeHtml(n.title)}</div>
-      <div class="notif-body">${escapeHtml(n.body)}</div>
-      <div class="notif-date">${formatDate(n.createdAt)}</div>
+    <div class="fb-item ${n.read ? '' : 'unread'}">
+      <div class="fb-icon">${pickEventIcon(n.title + ' ' + n.body)}</div>
+      <div class="fb-body">
+        <div class="fb-text"><b>${escapeHtml(n.title)}</b> — ${escapeHtml(n.body)}</div>
+        <div class="fb-time">${timeAgo(n.createdAt)}</div>
+      </div>
+      ${n.read ? '' : '<div class="fb-unread-dot"></div>'}
     </div>`).join('');
 }
 
@@ -851,15 +906,16 @@ function renderLiveUpdateList(data) {
   }
   $('liveUpdateList').classList.remove('empty-hint');
   $('liveUpdateList').innerHTML = data.updates.map(u => `
-    <div class="notif-item">
-      ${u.imageFileId ? `<img class="live-update-thumb" src="${driveImg(u.imageFileId)}" alt="">` : ''}
-      <div class="notif-body">${escapeHtml(u.text)}</div>
-      <div class="notif-date">${formatDate(u.createdAt)}</div>
+    <div class="fb-item">
+      ${u.imageFileId ? `<img class="fb-thumb" src="${driveImg(u.imageFileId)}" alt="">` : `<div class="fb-icon">${pickEventIcon(u.text)}</div>`}
+      <div class="fb-body">
+        <div class="fb-text">${escapeHtml(u.text)}</div>
+        <div class="fb-time">${timeAgo(u.createdAt)}</div>
+      </div>
     </div>`).join('');
 }
 
-$('liveUpdateCube').onclick = async () => {
-  $('liveUpdateModal').classList.remove('hidden');
+async function refreshLiveUpdates() {
   if (lastLiveUpdateData) renderLiveUpdateList(lastLiveUpdateData);
   else { $('liveUpdateList').classList.add('empty-hint'); $('liveUpdateList').textContent = 'Loading…'; }
 
@@ -870,9 +926,7 @@ $('liveUpdateCube').onclick = async () => {
   } catch (err) {
     if (!lastLiveUpdateData) $('liveUpdateList').textContent = err.message;
   }
-};
-$('closeLiveUpdateBtn').onclick = () => $('liveUpdateModal').classList.add('hidden');
-$('liveUpdateModal').querySelector('.modal-backdrop').onclick = () => $('liveUpdateModal').classList.add('hidden');
+}
 
 // ==================================================== EDIT PROFILE (#20) ==
 let editProfilePendingDp = null;

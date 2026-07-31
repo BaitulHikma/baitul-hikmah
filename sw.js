@@ -4,7 +4,7 @@
 // (2) receive push notifications sent from Code.gs via Firebase.
 // ============================================================================
 
-const CACHE_NAME = 'baitul-hikmah-v1';
+const CACHE_NAME = 'baitul-hikmah-v2';
 const APP_SHELL = [
   './',
   './index.html',

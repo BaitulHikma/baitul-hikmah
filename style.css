@@ -514,20 +514,52 @@ code {
 .modal-status { text-align: center; font-weight: 600; margin: 10px 0; }
 
 .notif-sheet { max-height: 80vh; }
-.notif-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-.notif-item {
-  background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 10px 12px;
+.notif-list { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
+
+/* "fb-item" = the shared Facebook-notification-style row used by both the
+   bell bulletin and the Live Update panel. */
+.fb-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 8px; border-radius: var(--radius-sm);
+  position: relative;
   animation: notif-fade-in 0.25s ease;
+  transition: background 0.15s ease;
 }
-.notif-item.unread { border-color: var(--accent-dim); background: var(--accent-soft); }
-.notif-item .notif-title { font-weight: 600; font-size: 0.86rem; }
-.notif-item .notif-body { color: var(--text-dim); font-size: 0.8rem; margin-top: 3px; }
-.notif-item .notif-date { color: var(--text-dim); font-size: 0.68rem; margin-top: 5px; opacity: 0.7; }
+.fb-item:hover { background: var(--surface-2); }
+.fb-item.unread { background: var(--accent-soft); }
+.fb-icon {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.fb-thumb { flex-shrink: 0; width: 38px; height: 38px; border-radius: 8px; object-fit: cover; }
+.fb-body { flex: 1; min-width: 0; }
+.fb-text { font-size: 0.82rem; line-height: 1.4; color: var(--text); }
+.fb-text b { font-weight: 700; }
+.fb-time { font-size: 0.68rem; color: var(--accent); font-weight: 600; margin-top: 3px; }
+.fb-unread-dot {
+  flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); margin-top: 8px;
+}
 @keyframes notif-fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* -------------------------------------------------------- MEMBERS LAYOUT */
+.members-layout { display: flex; flex-direction: column; gap: 18px; }
+.members-main { flex: 1; min-width: 0; }
+.live-update-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px;
+}
+.live-update-title { font-family: var(--font-display); font-size: 1rem; margin: 0 0 8px; }
+@media (min-width: 820px) {
+  .members-layout { flex-direction: row; align-items: flex-start; }
+  .live-update-panel { width: 300px; flex-shrink: 0; position: sticky; top: 76px; }
+}
+
 #modalWhatsappBtn { margin: 14px 0; }
 #modalWhatsappBtn.disabled { background: var(--surface-2); color: var(--text-dim); border-color: var(--border); pointer-events: none; }
 
