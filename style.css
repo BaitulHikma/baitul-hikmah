@@ -487,6 +487,20 @@ code {
   background: none; border: none; color: var(--text-dim); font-size: 1.6rem; cursor: pointer;
 }
 .modal-sheet.small { max-height: none; }
+
+.role-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  vertical-align: middle;
+}
+.role-badge.hidden-badge { background: var(--danger-soft); color: var(--danger); }
+.staff-tabs { display: flex; gap: 8px; margin: 12px 0 16px; }
 .modal-sheet img { width: 140px; display: block; margin: 0 auto 14px; border-radius: 8px; aspect-ratio: 3/4; object-fit: cover; }
 .modal-img-wrap { position: relative; width: 140px; margin: 0 auto 14px; }
 .modal-img-wrap img { width: 140px; margin: 0; }

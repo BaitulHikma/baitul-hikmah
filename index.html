@@ -46,6 +46,9 @@
   </button>
   <div class="topbar-title">Baitul Hikmah</div>
   <div class="topbar-right">
+    <button id="staffPanelBtn" class="icon-btn hidden" aria-label="Staff panel">
+      <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </button>
     <button id="notifBellBtn" class="icon-btn" aria-label="Notifications">
       <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span id="notifRedDot" class="notif-red-dot hidden"></span>
@@ -246,7 +249,7 @@
      ============================================================ -->
 <section id="page-explore" class="page hidden">
   <div class="explore-toolbar">
-    <input type="search" id="bookSearch" placeholder="Search book name...">
+    <input type="search" id="bookSearch" placeholder="Search book, writer, publisher, or owner...">
     <button id="filterBtn" class="icon-btn" aria-label="Filter">
       <svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
@@ -281,6 +284,43 @@
 <!-- ============================================================
      BOOK DETAIL MODAL
      ============================================================ -->
+<!-- ============================================================
+     WHATSAPP PASSWORD CONFIRM — re-enter password before the
+     owner's WhatsApp number is revealed (security requirement)
+     ============================================================ -->
+<div id="waConfirmModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeWaConfirmBtn">&times;</button>
+    <h3>Confirm it's you</h3>
+    <p class="form-hint">For everyone's safety, re-enter your password to reveal the owner's WhatsApp number. This access is logged.</p>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="waConfirmPassword">
+    </div>
+    <p class="form-error" id="waConfirmError"></p>
+    <button id="waConfirmSubmitBtn" class="btn btn-primary btn-wide">Confirm &amp; Open WhatsApp</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     STAFF PANEL — admin/moderator only: manage moderators, hide
+     accounts/books, and review the WhatsApp access log
+     ============================================================ -->
+<div id="staffPanelModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <button class="modal-close" id="closeStaffPanelBtn">&times;</button>
+    <h3>Staff panel</h3>
+    <div class="staff-tabs">
+      <button class="chip active" data-stafftab="members">Members</button>
+      <button class="chip" data-stafftab="log">WhatsApp access log</button>
+    </div>
+    <div id="staffMembersTab"></div>
+    <div id="staffLogTab" class="hidden"></div>
+  </div>
+</div>
+
 <div id="bookModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet">

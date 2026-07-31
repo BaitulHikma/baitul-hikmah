@@ -210,6 +210,7 @@ function renderPage(name) {
   if (loggedIn) {
     $('topRightAvatar').src = driveImg(currentUser.dpFileId);
     $('topRightBtn').onclick = () => goPage('profile');
+    $('staffPanelBtn').classList.toggle('hidden', !currentUser.isStaff);
     checkNotifRedDot();
   }
 
@@ -530,9 +531,10 @@ function renderBookGrid() {
       list = list.filter(b => borrowedIds.includes(b.bookId));
     }
     if (q) list = list.filter(b =>
-      (b.bookName || '').toLowerCase().includes(q) ||
-      (b.writer || '').toLowerCase().includes(q) ||
-      (b.ownerName || '').toLowerCase().includes(q)
+      String(b.bookName || '').toLowerCase().includes(q) ||
+      String(b.writer || '').toLowerCase().includes(q) ||
+      String(b.publisher || '').toLowerCase().includes(q) ||
+      String(b.ownerName || '').toLowerCase().includes(q)
     );
   }
 
@@ -613,11 +615,11 @@ function renderModalStatusArea(b) {
   } else if (b.myPendingRequestId) {
     statusEl.textContent = 'You already requested this book.';
     cancelBtn.classList.remove('hidden');
-    // A pending request unlocks the WhatsApp button, as specified.
-    const wa = String(b.ownerWhatsapp || '').replace(/[^0-9]/g, '');
-    if (wa) {
+    // A pending request unlocks the WhatsApp button — but the number itself
+    // is only revealed after a password re-confirm (see #24), so we don't
+    // set an href at all; the click handler below opens that confirm step.
+    if (b.ownerWhatsapp) {
       waBtn.classList.remove('disabled');
-      waBtn.setAttribute('href', 'https://wa.me/' + wa);
     }
   } else {
     statusEl.textContent = 'Available to borrow.';
@@ -627,6 +629,38 @@ function renderModalStatusArea(b) {
 
 $('closeModalBtn').onclick = () => $('bookModal').classList.add('hidden');
 $('bookModal').querySelector('.modal-backdrop').onclick = () => $('bookModal').classList.add('hidden');
+
+// #24 — WhatsApp button never navigates directly. It's a plain <a> with no
+// href now; a tap opens the password-confirm popup first, and only on a
+// correct password do we get the real number back and open the chat.
+$('modalWhatsappBtn').onclick = (e) => {
+  e.preventDefault();
+  if ($('modalWhatsappBtn').classList.contains('disabled')) return;
+  $('waConfirmPassword').value = '';
+  $('waConfirmError').textContent = '';
+  $('waConfirmModal').classList.remove('hidden');
+  $('waConfirmPassword').focus();
+};
+$('closeWaConfirmBtn').onclick = () => $('waConfirmModal').classList.add('hidden');
+$('waConfirmModal').querySelector('.modal-backdrop').onclick = () => $('waConfirmModal').classList.add('hidden');
+
+$('waConfirmSubmitBtn').onclick = (e) => guardedAction('waconfirm', e.target, async () => {
+  $('waConfirmError').textContent = '';
+  const password = $('waConfirmPassword').value;
+  if (!password) { $('waConfirmError').textContent = 'Enter your password.'; return; }
+  if (!activeModalBook) return;
+
+  let data;
+  try {
+    data = await api('confirmWhatsappAccess', { bookId: activeModalBook.bookId, password });
+  } catch (err) {
+    $('waConfirmError').textContent = err.message;
+    return;
+  }
+  $('waConfirmModal').classList.add('hidden');
+  const wa = String(data.whatsapp || '').replace(/[^0-9]/g, '');
+  if (wa) window.open('https://wa.me/' + wa, '_blank', 'noopener');
+});
 
 $('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.bookId, e.target, async () => {
   const book = activeModalBook;
@@ -975,6 +1009,70 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 $('backBtn').onclick = () => goPage('profile');
 
 // ================================================================= BOOT ===
+
+// ========================================================= STAFF PANEL ====
+
+$('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanelBtn'), async () => {
+  let data;
+  try {
+    data = await api('getStaffPanel', {});
+  } catch (err) {
+    showToast(err.message);
+    return;
+  }
+  renderStaffMembers(data);
+  renderStaffLog(data.whatsappAccessLog);
+  $('staffPanelModal').classList.remove('hidden');
+});
+$('closeStaffPanelBtn').onclick = () => $('staffPanelModal').classList.add('hidden');
+$('staffPanelModal').querySelector('.modal-backdrop').onclick = () => $('staffPanelModal').classList.add('hidden');
+
+document.querySelectorAll('[data-stafftab]').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('[data-stafftab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    $('staffMembersTab').classList.toggle('hidden', btn.dataset.stafftab !== 'members');
+    $('staffLogTab').classList.toggle('hidden', btn.dataset.stafftab !== 'log');
+  };
+});
+
+function renderStaffMembers(data) {
+  $('staffMembersTab').innerHTML = data.members.map(m => `
+    <div class="req-card">
+      <div class="req-card-body">
+        <div class="name">${escapeHtml(m.displayName)} ${m.role === 'moderator' ? '<span class="role-badge">MOD</span>' : ''}${m.hidden ? '<span class="role-badge hidden-badge">HIDDEN</span>' : ''}</div>
+        <div class="meta">${escapeHtml(m.email)}</div>
+      </div>
+      <div class="req-card-actions">
+        ${data.isAdmin ? `<button class="req-cancel" onclick="toggleModerator('${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove mod' : 'Make mod'}</button>` : ''}
+        <button class="req-cancel" onclick="toggleHidden('user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide' : 'Hide'}</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderStaffLog(log) {
+  if (!log || !log.length) { $('staffLogTab').innerHTML = '<p class="empty-hint">No WhatsApp access yet.</p>'; return; }
+  $('staffLogTab').innerHTML = log.map(l => `
+    <div class="req-card">
+      <div class="req-card-body">
+        <div class="name">${escapeHtml(l.UserName)} → ${escapeHtml(l.OwnerName)}</div>
+        <div class="meta">"${escapeHtml(l.BookName)}" · ${l.DurationDays ? l.DurationDays + ' days' : ''} · ${formatDate(l.AccessedAt)}</div>
+      </div>
+    </div>`).join('');
+}
+
+window.toggleModerator = (userId, makeModerator) => guardedAction('setmod-' + userId, null, async () => {
+  await api('setModerator', { targetUserId: userId, makeModerator });
+  const data = await api('getStaffPanel', {});
+  renderStaffMembers(data);
+  showToast('Updated.');
+});
+window.toggleHidden = (targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, null, async () => {
+  await api('setHidden', { targetType, targetId, hidden });
+  const data = await api('getStaffPanel', {});
+  renderStaffMembers(data);
+  showToast('Updated.');
+});
 
 (function boot() {
   const startHash = (location.hash || '').slice(1);
