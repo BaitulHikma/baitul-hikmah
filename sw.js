@@ -4,7 +4,7 @@
 // (2) receive push notifications sent from Code.gs via Firebase.
 // ============================================================================
 
-const CACHE_NAME = 'baitul-hikmah-v2';
+const CACHE_NAME = 'baitul-hikmah-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,9 +35,29 @@ self.addEventListener('activate', (event) => {
 
 // Network-first for the Apps Script API (always want fresh data), cache-first
 // for everything else in the app shell (so the app opens instantly).
+// Network-first for the Apps Script API AND for the app's own code files
+// (html/css/js) — this is the fix for "changes I push don't show up until
+// much later": code files must always prefer the live network copy when
+// online, falling back to cache only if genuinely offline. Only truly
+// static assets (icons) are cache-first, since those never change.
+const CODE_FILE_PATTERN = /\.(html|css|js|json)(\?|$)/;
+
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
   if (url.indexOf('script.google.com') !== -1) return; // never cache API calls
+
+  if (CODE_FILE_PATTERN.test(url)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
