@@ -45,9 +45,15 @@
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
   <div class="topbar-title">Baitul Hikmah</div>
-  <button id="topRightBtn" class="avatar-btn" aria-label="Account">
-    <img id="topRightAvatar" src="" alt="">
-  </button>
+  <div class="topbar-right">
+    <button id="notifBellBtn" class="icon-btn" aria-label="Notifications">
+      <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="notifRedDot" class="notif-red-dot hidden"></span>
+    </button>
+    <button id="topRightBtn" class="avatar-btn" aria-label="Account">
+      <img id="topRightAvatar" src="" alt="">
+    </button>
+  </div>
 </header>
 
 <!-- ============================================================
@@ -354,6 +360,15 @@
     <h3>Assalamu a'laikum!</h3>
     <p id="greetingPopupText" class="form-hint greeting-text"></p>
     <button id="greetingPopupOkBtn" class="btn btn-primary btn-wide">OK</button>
+  </div>
+</div>
+
+<div id="notifModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet notif-sheet">
+    <button class="modal-close" id="closeNotifBtn">&times;</button>
+    <h3>Notifications</h3>
+    <div id="notifList" class="notif-list empty-hint">Loading…</div>
   </div>
 </div>
 

@@ -7,6 +7,8 @@
 let currentUser = JSON.parse(localStorage.getItem('bh_user') || 'null');
 let allBooks = [];
 let allMembers = [];
+let booksLoadedOnce = false;   // #6 — lets us render instantly from cache on
+let membersLoadedOnce = false; // repeat visits instead of a spinner every time
 let profileData = null;
 let currentExploreFilter = 'all';
 let singleBookId = null;        // set when arriving at Explore from a profile card tap
@@ -176,6 +178,7 @@ function renderPage(name) {
   if (loggedIn) {
     $('topRightAvatar').src = driveImg(currentUser.dpFileId);
     $('topRightBtn').onclick = () => goPage('profile');
+    checkNotifRedDot();
   }
 
   if (name === 'profile') refreshProfile();
@@ -434,10 +437,18 @@ document.querySelectorAll('#detailSquares .square-btn').forEach(btn => {
 // ============================================================= EXPLORE ====
 
 async function refreshBooks() {
-  $('bookGrid').innerHTML = '<p class="empty-hint">Loading…</p>';
+  // #6 — if we've already loaded books this session, show them instantly
+  // (no spinner) and quietly refresh in the background. A real page reload
+  // resets booksLoadedOnce to false automatically, so that still gets a
+  // real fresh load as expected.
+  const isFirstLoad = !booksLoadedOnce;
+  if (isFirstLoad) $('bookGrid').innerHTML = '<p class="empty-hint">Loading…</p>';
+  else renderBookGrid();
+
   try {
     const data = await api('listBooks', {});
     allBooks = data.books;
+    booksLoadedOnce = true;
 
     if (singleBookId) {
       document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
@@ -452,8 +463,9 @@ async function refreshBooks() {
       if (b) openBookModal(singleBookId);
     }
   } catch (err) {
-    showToast(err.message);
-    $('bookGrid').innerHTML = '';
+    if (isFirstLoad) { showToast(err.message); $('bookGrid').innerHTML = ''; }
+    // On a background refresh, a failed silent retry shouldn't nuke what's
+    // already correctly on screen — just leave the last-known-good data.
   }
 }
 
@@ -617,41 +629,51 @@ $('modalEditIconBtn').onclick = () => {
 
 // ========================================================= MEMBERS =========
 
+let lastMembersData = null; // cached full response (includes leaderboard), for instant re-render
+
+function renderMembersUI(data) {
+  allMembers = data.members;
+
+  const lb = data.leaderboard || {};
+  const lbParts = [];
+  if (lb.topOwner) lbParts.push(`<div class="lb-item">📚 <b>${escapeHtml(lb.topOwner.name)}</b> — top owner (${lb.topOwner.count})</div>`);
+  if (lb.topBorrower) lbParts.push(`<div class="lb-item">🤝 <b>${escapeHtml(lb.topBorrower.name)}</b> — top borrower (${lb.topBorrower.count})</div>`);
+  if (lb.topRequester) lbParts.push(`<div class="lb-item">🙋 <b>${escapeHtml(lb.topRequester.name)}</b> — most active (${lb.topRequester.count})</div>`);
+  const lbEl = $('membersLeaderboard');
+  if (lbParts.length) { lbEl.classList.remove('hidden'); lbEl.innerHTML = lbParts.join(''); }
+  else { lbEl.classList.add('hidden'); }
+
+  $('membersList').innerHTML = allMembers.map(m => {
+    const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
+    const isSelf = currentUser && String(m.id) === String(currentUser.id);
+    return `
+    <div class="member-card">
+      <div class="dp-wrap">
+        <img src="${driveImg(m.dpFileId)}" alt="">
+        <span class="level-badge" title="Level ${m.level}">Lv ${m.level}</span>
+      </div>
+      <div class="member-body">
+        <div class="name">${escapeHtml(m.displayName)}</div>
+        ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
+        <div class="stats">Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}</div>
+      </div>
+      ${isSelf ? '' : `<button class="salam-btn ${cooldownActive ? 'faded' : ''}" ${cooldownActive ? 'disabled' : ''} onclick="sendSalam(this,'${m.id}')">Send Salam!</button>`}
+    </div>`;
+  }).join('');
+}
+
 async function refreshMembers() {
-  $('membersList').innerHTML = '<p class="empty-hint">Loading…</p>';
+  const isFirstLoad = !membersLoadedOnce;
+  if (isFirstLoad) $('membersList').innerHTML = '<p class="empty-hint">Loading…</p>';
+  else if (lastMembersData) renderMembersUI(lastMembersData);
+
   try {
     const data = await api('listMembers', {});
-    allMembers = data.members;
-
-    const lb = data.leaderboard || {};
-    const lbParts = [];
-    if (lb.topOwner) lbParts.push(`<div class="lb-item">📚 <b>${escapeHtml(lb.topOwner.name)}</b> — top owner (${lb.topOwner.count})</div>`);
-    if (lb.topBorrower) lbParts.push(`<div class="lb-item">🤝 <b>${escapeHtml(lb.topBorrower.name)}</b> — top borrower (${lb.topBorrower.count})</div>`);
-    if (lb.topRequester) lbParts.push(`<div class="lb-item">🙋 <b>${escapeHtml(lb.topRequester.name)}</b> — most active (${lb.topRequester.count})</div>`);
-    const lbEl = $('membersLeaderboard');
-    if (lbParts.length) { lbEl.classList.remove('hidden'); lbEl.innerHTML = lbParts.join(''); }
-    else { lbEl.classList.add('hidden'); }
-
-    $('membersList').innerHTML = allMembers.map(m => {
-      const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
-      const isSelf = currentUser && String(m.id) === String(currentUser.id);
-      return `
-      <div class="member-card">
-        <div class="dp-wrap">
-          <img src="${driveImg(m.dpFileId)}" alt="">
-          <span class="level-badge" title="Level ${m.level}">Lv ${m.level}</span>
-        </div>
-        <div class="member-body">
-          <div class="name">${escapeHtml(m.displayName)}</div>
-          ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
-          <div class="stats">Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}</div>
-        </div>
-        ${isSelf ? '' : `<button class="salam-btn ${cooldownActive ? 'faded' : ''}" ${cooldownActive ? 'disabled' : ''} onclick="sendSalam(this,'${m.id}')">Send Salam!</button>`}
-      </div>`;
-    }).join('');
+    lastMembersData = data;
+    membersLoadedOnce = true;
+    renderMembersUI(data);
   } catch (err) {
-    showToast(err.message);
-    $('membersList').innerHTML = '';
+    if (isFirstLoad) { showToast(err.message); $('membersList').innerHTML = ''; }
   }
 }
 
@@ -762,6 +784,45 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
 
 // ============================================== SIGNUP GREETING POPUP (#13)
 $('greetingPopupOkBtn').onclick = () => $('greetingPopupModal').classList.add('hidden');
+
+// ===================================================== NOTIFICATIONS (#3) ==
+async function checkNotifRedDot() {
+  if (!currentUser) return;
+  try {
+    const data = await api('listNotifications', {});
+    $('notifRedDot').classList.toggle('hidden', data.unreadCount === 0);
+  } catch (err) { /* silent — a failed badge check shouldn't interrupt anything */ }
+}
+
+$('notifBellBtn').onclick = async () => {
+  $('notifModal').classList.remove('hidden');
+  $('notifList').classList.add('empty-hint');
+  $('notifList').textContent = 'Loading…';
+  try {
+    const data = await api('listNotifications', {});
+    if (!data.notifications.length) {
+      $('notifList').textContent = 'No notifications yet.';
+      return;
+    }
+    $('notifList').classList.remove('empty-hint');
+    $('notifList').innerHTML = data.notifications.map(n => `
+      <div class="notif-item ${n.read ? '' : 'unread'}">
+        <div class="notif-title">${escapeHtml(n.title)}</div>
+        <div class="notif-body">${escapeHtml(n.body)}</div>
+        <div class="notif-date">${formatDate(n.createdAt)}</div>
+      </div>`).join('');
+    // Reading the list IS the "mark as read" action, per spec.
+    if (data.unreadCount > 0) {
+      api('markNotificationsRead', {}).then(() => $('notifRedDot').classList.add('hidden')).catch(() => {});
+    } else {
+      $('notifRedDot').classList.add('hidden');
+    }
+  } catch (err) {
+    $('notifList').textContent = err.message;
+  }
+};
+$('closeNotifBtn').onclick = () => $('notifModal').classList.add('hidden');
+$('notifModal').querySelector('.modal-backdrop').onclick = () => $('notifModal').classList.add('hidden');
 
 // ==================================================== EDIT PROFILE (#20) ==
 let editProfilePendingDp = null;
