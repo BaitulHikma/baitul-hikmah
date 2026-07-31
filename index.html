@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Baitul Hikmah — Book Borrowing</title>
+
+<!-- Fonts: Amiri gives the display headings a calligraphic Islamic feel,
+     Noto Sans Bengali renders the Bangla book/writer/publisher names,
+     Inter is the clean utility face for UI chrome and Latin text. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+
+<!-- PWA: makes the site installable as an app icon on Android and iPhone -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0f0d">
+<link rel="icon" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Baitul Hikmah">
+
+<!-- Firebase (only used for push notifications — safe to leave as-is even
+     before firebase-config.js is filled in; the app works fine without it) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+</head>
+<body>
+
+<!-- ============================================================
+     LOADING SCREEN — shown instantly on first load / page boot
+     ============================================================ -->
+<div id="bootLoader" class="boot-loader">
+  <div class="boot-loader-text">Baitul Hikmah</div>
+</div>
+
+<!-- ============================================================
+     TOP APP BAR — always visible once logged in
+     ============================================================ -->
+<header id="topbar" class="topbar hidden">
+  <button id="backBtn" class="icon-btn hidden" aria-label="Back">
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="topbar-title">Baitul Hikmah</div>
+  <div class="topbar-right">
+    <button id="staffPanelBtn" class="icon-btn hidden" aria-label="Staff panel">
+      <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="notifBellBtn" class="icon-btn" aria-label="Notifications">
+      <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="notifRedDot" class="notif-red-dot hidden"></span>
+    </button>
+    <button id="topRightBtn" class="avatar-btn" aria-label="Account">
+      <img id="topRightAvatar" src="" alt="">
+    </button>
+  </div>
+</header>
+
+<!-- ============================================================
+     AUTH SCREEN — sign in / sign up / forgot password
+     ============================================================ -->
+<section id="page-auth" class="page auth-page">
+  <div class="auth-wrap">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100">
+          <polygon points="50,4 61,35 94,35 67,55 78,86 50,66 22,86 33,55 6,35 39,35"
+                   fill="none" stroke="var(--accent)" stroke-width="1.4"/>
+        </svg>
+      </div>
+      <h1 class="brand-name">Baitul Hikmah</h1>
+      <p class="brand-moto">House of Wisdom — share a book, share a blessing</p>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <form id="loginForm" class="auth-form">
+      <div class="field">
+        <label>Email or WhatsApp number</label>
+        <input type="text" id="loginIdentifier" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="loginPassword" required autocomplete="current-password">
+      </div>
+      <p class="form-error" id="loginError"></p>
+      <button type="submit" class="btn btn-primary btn-wide">Sign in</button>
+      <div class="auth-links">
+        <a href="#" id="gotoForgot">Forgot password?</a>
+        <a href="#" id="gotoSignup">Don't have an account? Sign up</a>
+      </div>
+    </form>
+
+    <!-- SIGNUP FORM -->
+    <form id="signupForm" class="auth-form hidden">
+      <div class="field">
+        <label>Profile picture</label>
+        <div class="dp-picker">
+          <img id="signupDpPreview" src="" class="hidden" alt="">
+          <input type="file" id="signupDp" accept="image/*">
+        </div>
+      </div>
+      <div class="field">
+        <label>Display name</label>
+        <input type="text" id="signupName" required>
+      </div>
+      <div class="field">
+        <label>WhatsApp number</label>
+        <input type="text" id="signupWhatsapp" required value="+880" placeholder="+8801XXXXXXXXX">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="signupEmail" required>
+      </div>
+      <div class="field">
+        <label>Set password</label>
+        <input type="password" id="signupPassword" required autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label>Reference (who invited you?) — optional</label>
+        <input type="text" id="signupReference">
+      </div>
+      <p class="form-error" id="signupError"></p>
+      <button type="submit" class="btn btn-primary btn-wide">Create account</button>
+      <div class="auth-links">
+        <a href="#" id="gotoLoginFromSignup">Already have an account? Sign in</a>
+      </div>
+    </form>
+
+    <!-- FORGOT PASSWORD FORM -->
+    <form id="forgotForm" class="auth-form hidden">
+      <p class="form-hint">Step 1 — enter your account email, we'll send a 6-digit code.</p>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="forgotEmail" required>
+      </div>
+      <button type="button" id="sendResetCodeBtn" class="btn btn-secondary btn-wide">Send reset code</button>
+
+      <div id="resetStep2" class="hidden">
+        <p class="form-hint">Step 2 — enter the code from your email and a new password.</p>
+        <div class="field">
+          <label>Reset code</label>
+          <input type="text" id="resetCode" inputmode="numeric" maxlength="6">
+        </div>
+        <div class="field">
+          <label>New password</label>
+          <input type="password" id="resetNewPassword">
+        </div>
+        <button type="button" id="confirmResetBtn" class="btn btn-primary btn-wide">Reset password</button>
+      </div>
+
+      <p class="form-error" id="forgotError"></p>
+      <p class="form-success" id="forgotSuccess"></p>
+      <div class="auth-links">
+        <a href="#" id="gotoLoginFromForgot">Back to sign in</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- ============================================================
+     PROFILE PAGE (home page after sign-in)
+     ============================================================ -->
+<section id="page-profile" class="page hidden">
+  <div id="hadithStrip" class="hadith-strip hidden">
+    <div class="hadith-strip-track">
+      <span id="hadithStripText"></span>
+    </div>
+  </div>
+
+  <div class="profile-greeting">
+    <div class="profile-dp-wrap" id="openEditProfileBtn">
+      <img id="profileDpImg" src="" alt="">
+      <span class="level-badge" id="profileLevelBadge">Lv 0</span>
+      <span class="dp-edit-pen">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </div>
+    <p class="id-tag">Id number: <span id="profileIdNum"></span></p>
+    <h2 id="profileGreeting"></h2>
+    <p class="profile-bio" id="profileBioLine"></p>
+  </div>
+
+  <div class="success-stats-banner">
+    <div><span id="totalSuccessfulBorrows">0</span><span class="stat-label">Successful borrows</span></div>
+    <div><span id="totalSuccessfulReturns">0</span><span class="stat-label">Successful returns</span></div>
+  </div>
+
+  <div class="cube-row">
+    <button class="cube" id="exploreCube">
+      <span class="cube-num" id="cubeBookCount">0</span>
+      <span class="cube-label">Explore</span>
+    </button>
+    <button class="cube" id="membersCube">
+      <span class="cube-num" id="cubeMemberCount">0</span>
+      <span class="cube-label">Members</span>
+    </button>
+  </div>
+
+  <button class="btn btn-primary btn-wide add-book-cta" id="addBookCta">+ Add Books!</button>
+
+  <div class="detail-toggle-row" id="detailSquares">
+    <button class="square-btn" data-filter="mine">
+      <span class="square-num" id="myBooksCount">0</span>
+      <span>My books</span>
+    </button>
+    <button class="square-btn" data-filter="borrowed">
+      <span class="square-num" id="borrowedCount">0</span>
+      <span>Borrowed</span>
+    </button>
+    <button class="square-btn" data-filter="lent">
+      <span class="square-num" id="lentOutCount">0</span>
+      <span>Lent out</span>
+    </button>
+  </div>
+
+  <div class="feed-section" id="incomingRequestsSection">
+    <h3>Requested — waiting on your approval</h3>
+    <div id="incomingRequestsList" class="card-list empty-hint">No incoming requests.</div>
+  </div>
+
+  <div class="feed-section" id="outgoingRequestsSection">
+    <h3>Requesting — waiting on the owner</h3>
+    <div id="outgoingRequestsList" class="card-list empty-hint">No outgoing requests.</div>
+  </div>
+
+  <div class="feed-section" id="borrowedSection">
+    <h3>Borrowed by you</h3>
+    <div id="borrowedList" class="card-list empty-hint">No borrowed books.</div>
+  </div>
+
+  <div class="feed-section" id="lentOutSection">
+    <h3>Lent out</h3>
+    <div id="lentOutList" class="card-list empty-hint">No books lent out.</div>
+  </div>
+
+  <div class="feed-section" id="returnRequestsSection">
+    <h3>Return requests — confirm the book came back</h3>
+    <div id="returnRequestsList" class="card-list empty-hint">No return requests.</div>
+  </div>
+
+  <button class="btn btn-ghost btn-wide" id="signOutBtn">Sign out</button>
+</section>
+
+<!-- ============================================================
+     EXPLORE / LIBRARY PAGE
+     ============================================================ -->
+<section id="page-explore" class="page hidden">
+  <div class="explore-toolbar">
+    <input type="search" id="bookSearch" placeholder="Search book, writer, publisher, or owner...">
+    <button id="filterBtn" class="icon-btn" aria-label="Filter">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="filter-chips" id="filterChips">
+    <button class="chip active" data-filter="all">All</button>
+    <button class="chip" data-filter="mine">My books</button>
+    <button class="chip" data-filter="requesting">Requesting</button>
+    <button class="chip" data-filter="requested">Requested (mine, pending)</button>
+    <button class="chip" data-filter="borrowed">Borrowed by me</button>
+  </div>
+  <div id="bookGrid" class="book-grid"></div>
+</section>
+
+<!-- ============================================================
+     MEMBERS PAGE
+     ============================================================ -->
+<section id="page-members" class="page hidden">
+  <h2 class="page-title">Members</h2>
+  <div class="members-layout">
+    <div class="members-main">
+      <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
+      <div id="membersList" class="member-list"></div>
+    </div>
+    <div class="live-update-panel">
+      <h3 class="live-update-title">📡 Live Update</h3>
+      <div id="liveUpdateList" class="notif-list empty-hint">Loading…</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     BOOK DETAIL MODAL
+     ============================================================ -->
+<!-- ============================================================
+     WHATSAPP PASSWORD CONFIRM — re-enter password before the
+     owner's WhatsApp number is revealed (security requirement)
+     ============================================================ -->
+<div id="waConfirmModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeWaConfirmBtn">&times;</button>
+    <h3>Confirm it's you</h3>
+    <p class="form-hint">For everyone's safety, re-enter your password to reveal the owner's WhatsApp number. This access is logged.</p>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="waConfirmPassword">
+    </div>
+    <p class="form-error" id="waConfirmError"></p>
+    <button id="waConfirmSubmitBtn" class="btn btn-primary btn-wide">Confirm &amp; Open WhatsApp</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     STAFF PANEL — admin/moderator only: manage moderators, hide
+     accounts/books, and review the WhatsApp access log
+     ============================================================ -->
+<div id="staffPanelModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <button class="modal-close" id="closeStaffPanelBtn">&times;</button>
+    <h3>Staff panel</h3>
+    <div class="staff-tabs">
+      <button class="chip active" data-stafftab="members">Members</button>
+      <button class="chip" data-stafftab="log">WhatsApp access log</button>
+    </div>
+    <div id="staffMembersTab"></div>
+    <div id="staffLogTab" class="hidden"></div>
+  </div>
+</div>
+
+<div id="bookModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <button class="modal-close" id="closeModalBtn">&times;</button>
+    <div class="modal-img-wrap">
+      <img id="modalImage" src="" alt="">
+      <button id="modalEditIconBtn" class="edit-pen-btn hidden" aria-label="Edit book details">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <h3 id="modalBookName"></h3>
+    <p id="modalWriter" class="modal-sub"></p>
+    <p id="modalPublisher" class="modal-sub"></p>
+    <p id="modalOwner" class="modal-sub"></p>
+    <p id="modalStatus" class="modal-status"></p>
+    <a id="modalWhatsappBtn" class="btn btn-secondary btn-wide disabled" target="_blank" rel="noopener">Message owner on WhatsApp</a>
+
+    <div id="modalBorrowArea">
+      <div class="field">
+        <label>Borrow duration (days)</label>
+        <input type="number" id="modalDuration" min="1" value="7">
+      </div>
+      <button id="modalRequestBtn" class="btn btn-primary btn-wide">Request to borrow</button>
+    </div>
+    <button id="modalCancelReqBtn" class="btn btn-ghost btn-wide hidden">Cancel request</button>
+    <button id="modalHideBookBtn" class="btn btn-ghost btn-wide hidden">Hide this book</button>
+    <button id="modalDeleteBtn" class="btn btn-danger btn-wide hidden">Delete this book</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     EDIT BOOK DETAILS POPUP (used for both a pending upload
+     and an already-uploaded book you own)
+     ============================================================ -->
+<div id="editMetaModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeEditMetaBtn">&times;</button>
+    <h3>Book details</h3>
+    <p class="form-hint">All optional — leave blank and fill in later if you like.</p>
+    <div class="field">
+      <label>Book name</label>
+      <input type="text" id="editMetaName">
+    </div>
+    <div class="field">
+      <label>Writer</label>
+      <input type="text" id="editMetaWriter">
+    </div>
+    <div class="field">
+      <label>Publisher</label>
+      <input type="text" id="editMetaPublisher">
+    </div>
+    <div class="field">
+      <label>Page count</label>
+      <input type="number" id="editMetaPageCount" min="1" inputmode="numeric" placeholder="e.g. 320">
+    </div>
+    <button id="editMetaSaveBtn" class="btn btn-primary btn-wide">Save</button>
+  </div>
+</div>
+
+<div id="editProfileModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeEditProfileBtn">&times;</button>
+    <h3>Edit profile</h3>
+    <div class="edit-profile-dp-row dp-picker">
+      <img id="editProfileDpPreview" src="" alt="">
+      <label class="btn btn-ghost" for="editProfileDpInput">Change picture</label>
+      <input type="file" id="editProfileDpInput" accept="image/*" class="hidden">
+    </div>
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="editProfileName">
+    </div>
+    <div class="field">
+      <label>Bio</label>
+      <textarea id="editProfileBio" maxlength="300" rows="3" placeholder="Tell other members a little about yourself…"></textarea>
+    </div>
+    <button id="editProfileSaveBtn" class="btn btn-primary btn-wide">Save changes</button>
+  </div>
+</div>
+
+<div id="greetingPopupModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small greeting-popup">
+    <h3>Assalamu a'laikum!</h3>
+    <p id="greetingPopupText" class="form-hint greeting-text"></p>
+    <button id="greetingPopupOkBtn" class="btn btn-primary btn-wide">OK</button>
+  </div>
+</div>
+
+<div id="notifModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet notif-sheet">
+    <button class="modal-close" id="closeNotifBtn">&times;</button>
+    <h3>Notifications</h3>
+    <div id="notifList" class="notif-list empty-hint">Loading…</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ADD BOOKS PAGE
+     ============================================================ -->
+<section id="page-addbooks" class="page hidden">
+  <h2 class="page-title">Add Books</h2>
+  <p class="form-hint">
+    Pick as many photos as you like. Each one is automatically resized to
+    stay under 500KB. Tap a cover afterwards to add its name, writer and
+    publisher — or skip that and fill it in anytime later from the book's
+    page using the pencil icon.
+  </p>
+  <input type="file" id="bookFilesInput" accept="image/*" multiple>
+  <p id="compressStatus" class="form-hint hidden"></p>
+  <div id="addBooksPreview" class="add-preview-grid"></div>
+  <button id="uploadBooksBtn" class="btn btn-primary btn-wide" disabled>Upload books</button>
+  <p class="form-error" id="addBooksError"></p>
+  <p class="form-success" id="addBooksSuccess"></p>
+</section>
+
+<!-- ============================================================
+     BOTTOM NAVIGATION
+     ============================================================ -->
+<nav id="bottomNav" class="bottom-nav hidden">
+  <button class="nav-btn" data-page="explore">
+    <svg viewBox="0 0 24 24"><path d="M4 4h7v16H4zM13 4h7v16h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    <span>Explore</span>
+  </button>
+  <button class="nav-btn" data-page="profile">
+    <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Profile</span>
+  </button>
+  <button class="nav-btn" data-page="addbooks">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>Add</span>
+  </button>
+  <button class="nav-btn" data-page="members">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Members</span>
+  </button>
+</nav>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- ============================================================
+     INSTALL APP BANNER — Android shows a real "Install" button;
+     iPhone gets manual Add-to-Home-Screen instructions (Apple
+     doesn't allow websites to trigger this automatically).
+     ============================================================ -->
+<div id="installBanner" class="install-banner hidden">
+  <span id="installBannerText">Install Baitul Hikmah as an app for quick access.</span>
+  <button id="installBannerBtn" class="btn btn-primary">Install</button>
+  <button id="installBannerDismiss" class="icon-btn" aria-label="Dismiss">&times;</button>
+</div>
+
+<!-- ============================================================
+     NOTIFICATION PERMISSION BANNER
+     ============================================================ -->
+<div id="notifBanner" class="install-banner hidden">
+  <span>Get notified about borrow requests and returns.</span>
+  <button id="notifBannerBtn" class="btn btn-primary">Enable</button>
+  <button id="notifBannerDismiss" class="icon-btn" aria-label="Dismiss">&times;</button>
+</div>
+
+<script src="config.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
