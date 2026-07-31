@@ -1,5 +1,9 @@
 /* ============================================================================
-   DESIGN TOKENS & STYLESHEET FOR BAITUL HIKMAH
+   DESIGN TOKENS
+   Palette: deep near-black charcoal-green (the tone of old leather-bound
+   book covers at night) with a single antique-gold accent (gilt lettering
+   on a spine). A muted emerald is the secondary accent for "available /
+   success" states, echoing masjid dome tiling without being literal.
    ============================================================================ */
 :root {
   --bg: #0a0f0d;
@@ -33,6 +37,8 @@ html, body {
 }
 
 body {
+  /* faint repeating 8-point star lattice — the page's one ornament,
+     kept quiet so it reads as texture, not decoration */
   background-image:
     radial-gradient(circle at 50% 50%, rgba(201,162,75,0.035) 0, transparent 55%),
     linear-gradient(var(--bg), var(--bg));
@@ -42,7 +48,7 @@ body {
 
 .hidden { display: none !important; }
 
-/* BOOT LOADER */
+/* ---------------------------------------------------------- BOOT LOADER */
 .boot-loader {
   position: fixed;
   inset: 0;
@@ -64,12 +70,19 @@ body {
   50% { opacity: 0.25; }
 }
 
-button, input, select { font-family: inherit; }
+button, input { font-family: inherit; }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* TOP APP BAR */
+code {
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+/* ---------------------------------------------------------------- TOP BAR */
 .topbar {
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -78,7 +91,7 @@ a:hover { text-decoration: underline; }
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  background: rgba(10, 15, 13, 0.92);
+  background: rgba(10, 15, 13, 0.9);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
   z-index: 40;
@@ -99,10 +112,8 @@ a:hover { text-decoration: underline; }
   width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  position: relative;
 }
 .icon-btn svg { width: 22px; height: 22px; }
-.hadiya-icon { font-size: 1.2rem; }
 .avatar-btn {
   width: 34px; height: 34px;
   border-radius: 50%;
@@ -114,14 +125,15 @@ a:hover { text-decoration: underline; }
 }
 .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
 
-.topbar-right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.topbar-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .notif-red-dot {
-  position: absolute; top: 3px; right: 3px;
+  position: absolute; top: 4px; right: 4px;
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--danger); border: 1.5px solid var(--bg);
 }
+#notifBellBtn { position: relative; }
 
-/* PAGE CONTAINERS */
+/* ---------------------------------------------------------------- PAGES */
 .page {
   max-width: 480px;
   margin: 0 auto;
@@ -135,7 +147,7 @@ a:hover { text-decoration: underline; }
   margin: 4px 0 16px;
 }
 
-/* AUTHENTICATION */
+/* ---------------------------------------------------------------- AUTH */
 .auth-page { padding-top: 40px; }
 .auth-wrap { max-width: 420px; margin: 0 auto; }
 .brand { text-align: center; margin-bottom: 28px; }
@@ -168,7 +180,7 @@ a:hover { text-decoration: underline; }
   color: var(--text-dim);
   margin-bottom: 6px;
 }
-.field input, .field select {
+.field input {
   width: 100%;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -178,7 +190,7 @@ a:hover { text-decoration: underline; }
   font-size: 0.95rem;
   outline: none;
 }
-.field input:focus, .field select:focus {
+.field input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
@@ -194,7 +206,11 @@ a:hover { text-decoration: underline; }
   font-family: var(--font-body);
   resize: vertical;
 }
-
+.field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+#editProfileModal .dp-picker img { width: 64px; height: 64px; border-radius: 50%; aspect-ratio: auto; margin: 0; }
 .dp-picker { display: flex; align-items: center; gap: 12px; }
 .dp-picker img {
   width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
@@ -214,7 +230,7 @@ a:hover { text-decoration: underline; }
   text-align: center;
 }
 
-/* BUTTONS */
+/* ---------------------------------------------------------------- BUTTONS */
 .btn {
   border: none;
   border-radius: var(--radius-sm);
@@ -232,7 +248,7 @@ a:hover { text-decoration: underline; }
 .btn-danger { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
 .btn.disabled, .btn:disabled { opacity: 0.4; pointer-events: none; }
 
-/* PROFILE PAGE */
+/* ---------------------------------------------------------------- PROFILE */
 .hadith-strip {
   overflow: hidden; white-space: nowrap;
   background: var(--surface); border: 1px solid var(--accent-dim);
@@ -250,42 +266,11 @@ a:hover { text-decoration: underline; }
   0% { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }
+.greeting-popup h3 { margin-bottom: 12px; }
+.greeting-popup .greeting-text { text-align: center; line-height: 1.6; margin-bottom: 18px; }
 
-.profile-header-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 16px;
-}
-.profile-header-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* Subtle, refined success stats in top corner (#17) */
-.success-stats-compact {
-  display: flex;
-  gap: 8px;
-}
-.stat-chip {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  color: var(--text-dim);
-}
-.stat-chip .chip-val {
-  color: var(--accent);
-  font-weight: 700;
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-}
-
-.profile-greeting { text-align: center; margin-top: 10px; }
-.id-tag { color: var(--text-dim); font-size: 0.8rem; margin: 0 0 2px; }
+.profile-greeting { margin-bottom: 18px; text-align: center; }
+.id-tag { color: var(--text-dim); font-size: 0.8rem; margin: 0 0 4px; }
 .profile-greeting h2 {
   font-family: var(--font-display);
   color: var(--text);
@@ -293,22 +278,22 @@ a:hover { text-decoration: underline; }
   margin: 0;
 }
 .profile-dp-wrap {
-  position: relative; width: 72px; height: 72px; margin: 0;
+  position: relative; width: 76px; height: 76px; margin: 0 auto 10px;
   cursor: pointer;
 }
 .profile-dp-wrap img {
-  width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+  width: 76px; height: 76px; border-radius: 50%; object-fit: cover;
   background: var(--surface-2); border: 2px solid var(--accent-dim);
 }
 .profile-dp-wrap .dp-edit-pen {
   position: absolute; bottom: -2px; right: -2px;
   background: var(--accent); color: #1a1406;
-  width: 22px; height: 22px; border-radius: 50%;
+  width: 24px; height: 24px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   border: 2px solid var(--bg);
 }
-.profile-dp-wrap .dp-edit-pen svg { width: 12px; height: 12px; }
-.profile-bio { color: var(--text-dim); font-size: 0.8rem; margin: 6px auto 0; max-width: 320px; }
+.profile-dp-wrap .dp-edit-pen svg { width: 13px; height: 13px; }
+.profile-bio { color: var(--text-dim); font-size: 0.8rem; margin: 6px auto 0; max-width: 280px; }
 
 .level-badge {
   background: var(--accent); color: #1a1406;
@@ -318,6 +303,18 @@ a:hover { text-decoration: underline; }
   white-space: nowrap; border: 2px solid var(--bg);
 }
 #profileLevelBadge { top: auto; bottom: -2px; left: -6px; transform: none; }
+
+.success-stats-banner { display: flex; gap: 10px; margin: 4px 0 18px; }
+.success-stats-banner > div {
+  flex: 1; text-align: center; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 6px;
+}
+.success-stats-banner span:first-child {
+  display: block; font-family: var(--font-display); color: var(--accent);
+  font-size: 1.25rem; font-weight: 700;
+}
+.success-stats-banner .stat-label { font-size: 0.66rem; color: var(--text-dim); }
 
 .cube-row { display: flex; gap: 12px; margin-bottom: 12px; }
 .cube {
@@ -335,7 +332,9 @@ a:hover { text-decoration: underline; }
   color: var(--text);
 }
 .cube-num { font-family: var(--font-display); font-size: 1.8rem; color: var(--accent); }
+.cube-icon { font-size: 1.6rem; }
 .cube-label { font-size: 0.85rem; color: var(--text-dim); }
+.live-update-thumb { width: 100%; max-height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; }
 
 .add-book-cta { margin-bottom: 18px; }
 
@@ -387,7 +386,7 @@ a:hover { text-decoration: underline; }
 .req-approve { background: var(--green-soft); color: var(--green); }
 .req-cancel { background: var(--danger-soft); color: var(--danger); }
 
-/* EXPLORE PAGE */
+/* ---------------------------------------------------------------- EXPLORE */
 .explore-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
 .explore-toolbar input {
   flex: 1;
@@ -426,7 +425,7 @@ a:hover { text-decoration: underline; }
 .book-cover-wrap { position: relative; }
 .page-count-badge {
   position: absolute; top: 6px; right: 6px;
-  background: rgba(10, 15, 13, 0.78); color: #fff;
+  background: rgba(10, 15, 13, 0.72); color: #fff;
   font-size: 0.62rem; font-weight: 600; letter-spacing: 0.02em;
   padding: 2px 6px; border-radius: 20px; backdrop-filter: blur(2px);
 }
@@ -437,7 +436,7 @@ a:hover { text-decoration: underline; }
 .book-status.available { color: var(--green); }
 .book-status.unavailable { color: var(--danger); }
 
-/* MEMBERS PAGE */
+/* ---------------------------------------------------------------- MEMBERS */
 .member-list { display: flex; flex-direction: column; gap: 10px; }
 .member-card {
   display: flex; align-items: center; gap: 12px;
@@ -469,114 +468,14 @@ a:hover { text-decoration: underline; }
 .leaderboard-banner .lb-item { color: var(--text-dim); }
 .leaderboard-banner .lb-item b { color: var(--accent); }
 
-/* FEATURED BOOK PAGES (#16) */
-.featured-header { margin-bottom: 12px; }
-.featured-toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
-.featured-toolbar input {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 9px 12px;
-  color: var(--text);
-  font-size: 0.85rem;
-}
-.featured-sort-select {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  font-size: 0.8rem;
-  outline: none;
-}
-
-.featured-gallery {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-.featured-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-}
-.featured-card-img-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 3/4;
-  overflow: hidden;
-  background: var(--surface-2);
-}
-.featured-card-img-wrap img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
-}
-.featured-card-body {
-  padding: 8px 10px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-.featured-book-title {
-  font-size: 0.82rem; font-weight: 600; color: var(--text);
-  line-height: 1.3;
-}
-.featured-post-owner {
-  font-size: 0.72rem; color: var(--text-dim); margin-top: 4px;
-}
-
-/* Floating Action Button (FAB) */
-.fab-btn {
-  position: fixed;
-  bottom: 74px;
-  right: 18px;
-  width: 52px; height: 52px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #1a1406;
-  border: none;
-  box-shadow: 0 4px 16px rgba(201,162,75,0.4);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  z-index: 45;
-  transition: transform 0.15s ease;
-}
-.fab-btn:active { transform: scale(0.92); }
-.fab-btn svg { width: 26px; height: 26px; }
-
-/* FEATURED ZOOM MODAL (#16) */
-.featured-zoom-sheet {
-  background: #000;
-  padding: 16px;
-  max-height: 94vh;
-  display: flex;
-  flex-direction: column;
-  border-radius: 16px 16px 0 0;
-}
-.zoom-img-container {
-  flex: 1;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 10px;
-}
-.zoom-img {
-  max-width: 100%;
-  max-height: 75vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-/* MODAL SHEETS */
+/* ---------------------------------------------------------------- MODAL */
 .modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
-#waConfirmModal, #staffPanelModal, #postFeaturedModal { z-index: 75; }
-.modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.65); }
+/* These two can be opened FROM WITHIN the book detail modal, but appear
+   earlier in the page's HTML — without an explicit higher z-index they'd
+   silently render BEHIND it (same z-index falls back to DOM order), which
+   both hides them visually and blocks clicks from ever reaching them. */
+#waConfirmModal, #staffPanelModal { z-index: 75; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
 .modal-sheet {
   position: relative;
   background: var(--surface);
@@ -623,6 +522,8 @@ a:hover { text-decoration: underline; }
 }
 .edit-pen-btn svg { width: 16px; height: 16px; }
 
+/* buttons get a disabled "busy" look while a request is in flight,
+   used as the double-tap guard for every action button in the app */
 .btn.is-busy, .icon-btn.is-busy, .req-card-actions button.is-busy {
   opacity: 0.55;
   pointer-events: none;
@@ -632,12 +533,15 @@ a:hover { text-decoration: underline; }
 .modal-status { text-align: center; font-weight: 600; margin: 10px 0; }
 
 .notif-sheet { max-height: 80vh; }
-.notif-list { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.notif-list { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
 
+/* "fb-item" = the shared Facebook-notification-style row used by both the
+   bell bulletin and the Live Update panel. */
 .fb-item {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 10px 8px; border-radius: var(--radius-sm);
   position: relative;
+  animation: notif-fade-in 0.25s ease;
   transition: background 0.15s ease;
 }
 .fb-item:hover { background: var(--surface-2); }
@@ -653,11 +557,32 @@ a:hover { text-decoration: underline; }
 .fb-text { font-size: 0.82rem; line-height: 1.4; color: var(--text); }
 .fb-text b { font-weight: 700; }
 .fb-time { font-size: 0.68rem; color: var(--accent); font-weight: 600; margin-top: 3px; }
+.fb-unread-dot {
+  flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); margin-top: 8px;
+}
+@keyframes notif-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* -------------------------------------------------------- MEMBERS LAYOUT */
+.members-layout { display: flex; flex-direction: column; gap: 18px; }
+.members-main { flex: 1; min-width: 0; }
+.live-update-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px;
+}
+.live-update-title { font-family: var(--font-display); font-size: 1rem; margin: 0 0 8px; }
+@media (min-width: 820px) {
+  .members-layout { flex-direction: row; align-items: flex-start; }
+  .live-update-panel { width: 300px; flex-shrink: 0; position: sticky; top: 76px; }
+}
 
 #modalWhatsappBtn { margin: 14px 0; }
 #modalWhatsappBtn.disabled { background: var(--surface-2); color: var(--text-dim); border-color: var(--border); pointer-events: none; }
 
-/* ADD BOOKS PAGE */
+/* ---------------------------------------------------------------- ADD BOOKS */
 #bookFilesInput {
   width: 100%;
   background: var(--surface);
@@ -690,7 +615,7 @@ a:hover { text-decoration: underline; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* BOTTOM NAVIGATION BAR (#15: Order: Explore - Profile - Add - Members - Live Update - Featured) */
+/* ---------------------------------------------------------------- BOTTOM NAV */
 .bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
@@ -712,12 +637,12 @@ a:hover { text-decoration: underline; }
   gap: 3px;
   padding: 9px 0 7px;
   cursor: pointer;
-  font-size: 0.64rem;
+  font-size: 0.68rem;
 }
-.nav-btn svg { width: 20px; height: 20px; }
+.nav-btn svg { width: 21px; height: 21px; }
 .nav-btn.active { color: var(--accent); }
 
-/* TOAST */
+/* ---------------------------------------------------------------- TOAST */
 .toast {
   position: fixed;
   bottom: 76px;
@@ -734,7 +659,11 @@ a:hover { text-decoration: underline; }
   text-align: center;
 }
 
-/* INSTALL BANNER */
+@media (min-width: 560px) {
+  .page { padding-top: 82px; }
+}
+
+/* ---------------------------------------------------------- INSTALL BANNER */
 .install-banner {
   position: fixed;
   left: 12px; right: 12px;

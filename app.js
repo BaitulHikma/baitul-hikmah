@@ -1,28 +1,24 @@
 // ============================================================================
 // BAITUL HIKMAH — Frontend Application Logic
-// Plain vanilla JS. No frameworks, no build step.
+// Plain vanilla JS. No frameworks, no build step — open index.html and go.
 // ============================================================================
 
-// STATE
+// ---------------------------------------------------------------- STATE ----
 let currentUser = JSON.parse(localStorage.getItem('bh_user') || 'null');
 let allBooks = [];
 let allMembers = [];
-let allFeaturedPosts = [];
-let booksLoadedOnce = false;
-let membersLoadedOnce = false;
-let featuredLoadedOnce = false;
+let booksLoadedOnce = false;   // #6 — lets us render instantly from cache on
+let membersLoadedOnce = false; // repeat visits instead of a spinner every time
 let profileData = null;
 let currentExploreFilter = 'all';
-let singleBookId = null;
+let singleBookId = null;        // set when arriving at Explore from a profile card tap
 let activeModalBook = null;
-let editMetaContext = null;
-let pendingBookFiles = [];
-let selectedFeaturedBook = null;
-let pendingFeaturedImageB64 = '';
+let editMetaContext = null;     // { mode: 'pending', index } or { mode: 'existing', bookId }
+let pendingBookFiles = [];      // [{ base64, bookName, writer, publisher }]
 
-const PAGES = ['auth', 'profile', 'explore', 'members', 'liveupdate', 'featured', 'addbooks'];
+const PAGES = ['auth', 'profile', 'explore', 'members', 'addbooks'];
 
-// HELPERS
+// ---------------------------------------------------------------- HELPERS --
 function $(id) { return document.getElementById(id); }
 
 function driveImg(fileId, fallback) {
@@ -49,6 +45,8 @@ function formatDate(d) {
   return dt.toLocaleDateString();
 }
 
+// FB-style relative time: "Just now", "5m", "3h", "2d", then falls back to
+// a real date once it's old enough that "Nd" stops being useful.
 function timeAgo(d) {
   if (!d) return '';
   const dt = new Date(d);
@@ -61,6 +59,9 @@ function timeAgo(d) {
   return dt.toLocaleDateString();
 }
 
+// Picks a small emoji "avatar" for a notification/update row based on
+// keywords in its text — purely cosmetic, mirrors how FB notifications use
+// an icon badge to hint at the action type at a glance.
 function pickEventIcon(text) {
   const t = (text || '').toLowerCase();
   if (t.includes('level up') || t.includes('reached level')) return '🎉';
@@ -73,11 +74,14 @@ function pickEventIcon(text) {
   if (t.includes('added') || t.includes('library')) return '📚';
   if (t.includes('joined')) return '🌟';
   if (t.includes('hadith')) return '🕌';
-  if (t.includes('featured')) return '📖';
   return '🔔';
 }
 
-// DOUBLE-TAP GUARD
+// ---------------------------------------------------- DOUBLE-TAP GUARD ----
+// Every action in the app (button click or form submit) runs through this.
+// While a call for a given "key" is in flight, repeat taps are ignored —
+// this is what stops "sign up" being submitted five times because the
+// network felt slow. The button also gets an instant visual "busy" state.
 const busyKeys = new Set();
 async function guardedAction(key, btnEl, fn) {
   if (busyKeys.has(key)) return;
@@ -102,15 +106,17 @@ function fileToBase64(file) {
   });
 }
 
+// Shrinks an image (by quality, then by dimensions) until it's under
+// maxKB. Runs entirely in the browser on a <canvas> — no server round trip.
 function compressImage(file, maxKB) {
-  maxKB = maxKB || 100;
+  maxKB = maxKB || 500;
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        let quality = 0.85;
-        let scale = 0.9;
+        let quality = 0.9;
+        let scale = 1;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
@@ -127,7 +133,7 @@ function compressImage(file, maxKB) {
               fr.onload = () => resolve(fr.result);
               fr.readAsDataURL(blob);
             } else {
-              if (quality > 0.3) quality -= 0.15; else scale = Math.max(0.15, scale - 0.15);
+              if (quality > 0.35) quality -= 0.15; else scale = Math.max(0.2, scale - 0.15);
               attempt(triesLeft - 1);
             }
           }, 'image/jpeg', quality);
@@ -142,11 +148,12 @@ function compressImage(file, maxKB) {
   });
 }
 
-// API CALL
+// Calls the Apps Script backend. We always POST as text/plain to dodge
+// CORS preflight (see the big comment at the top of Code.gs).
 async function api(action, payload) {
-  if (!API_URL || API_URL.indexOf('PASTE_YOUR') !== -1) {
-    showToast('Please set your Apps Script URL in config.js');
-    throw new Error('API_URL not configured in config.js');
+  if (!API_URL || API_URL.indexOf('PASTE_YOUR') === 0) {
+    showToast('Set your Apps Script URL in config.js first.');
+    throw new Error('API_URL not configured');
   }
   const body = Object.assign({ action: action }, payload || {});
   if (currentUser) {
@@ -176,7 +183,10 @@ function hideBootLoader() {
   $('bootLoader').classList.add('hidden');
 }
 
-// ROUTER
+// ---------------------------------------------------------------- ROUTER ---
+// The current page lives in the URL hash (#profile, #explore, ...) so a
+// reload — or the browser's back button — lands you back where you were,
+// instead of always bouncing to the profile page.
 function goPage(name) {
   if (location.hash.slice(1) !== name) location.hash = name;
   else renderPage(name);
@@ -206,14 +216,13 @@ function renderPage(name) {
 
   if (name === 'profile') refreshProfile();
   if (name === 'explore') refreshBooks();
-  if (name === 'members') refreshMembers();
-  if (name === 'liveupdate') refreshFullLiveUpdates();
-  if (name === 'featured') refreshFeaturedPosts();
+  if (name === 'members') { refreshMembers(); refreshLiveUpdates(); }
 
   window.scrollTo(0, 0);
 }
 
-// AUTH
+// ================================================================ AUTH ====
+
 function showAuthTab(which) {
   ['loginForm', 'signupForm', 'forgotForm'].forEach(id => $(id).classList.add('hidden'));
   $(which).classList.remove('hidden');
@@ -227,11 +236,9 @@ $('gotoLoginFromForgot').onclick = e => { e.preventDefault(); showAuthTab('login
 $('signupDp').onchange = async () => {
   const f = $('signupDp').files[0];
   if (!f) return;
-  try {
-    const b64 = await compressImage(f, 100);
-    $('signupDpPreview').src = b64;
-    $('signupDpPreview').classList.remove('hidden');
-  } catch (err) { showToast('Image compression error: ' + err.message); }
+  const b64 = await fileToBase64(f);
+  $('signupDpPreview').src = b64;
+  $('signupDpPreview').classList.remove('hidden');
 };
 
 $('loginForm').onsubmit = (e) => {
@@ -255,7 +262,7 @@ $('signupForm').onsubmit = (e) => {
     $('signupError').textContent = '';
     let dpBase64 = '';
     const f = $('signupDp').files[0];
-    if (f) dpBase64 = await compressImage(f, 100);
+    if (f) dpBase64 = await fileToBase64(f);
 
     const data = await api('signup', {
       displayName: $('signupName').value.trim(),
@@ -284,7 +291,7 @@ $('sendResetCodeBtn').onclick = (e) => {
     const email = $('forgotEmail').value.trim();
     if (!email) { $('forgotError').textContent = 'Enter your email first.'; return; }
     await api('forgotPasswordRequest', { email }).catch(err => { $('forgotError').textContent = err.message; throw err; });
-    $('forgotSuccess').textContent = 'Code sent! Check your inbox (and spam folder).';
+    $('forgotSuccess').textContent = 'Code sent! Check your inbox (and your spam folder).';
     $('resetStep2').classList.remove('hidden');
   });
 };
@@ -311,27 +318,30 @@ $('signOutBtn').onclick = () => {
   goPage('auth');
 };
 
-// PROFILE PAGE
+// ============================================================= PROFILE ====
+
 async function refreshProfile() {
   if (!currentUser) return;
   try {
+    // ONE call gets everything the profile page needs (counts, feeds,
+    // notifications) — this used to be four separate round trips.
     const data = await api('getProfile', {});
     profileData = data;
     $('profileIdNum').textContent = data.profile.id;
-    $('profileGreeting').textContent = "Assalamu a'laikum, " + data.profile.displayName + "! 👋";
+    $('profileGreeting').textContent = "Assalamu a'laikum ya shabab! " + data.profile.displayName;
     $('profileDpImg').src = driveImg(data.profile.dpFileId);
     $('profileLevelBadge').textContent = 'Lv ' + data.profile.level;
     $('profileBioLine').textContent = data.profile.bio || '';
     $('profileBioLine').classList.toggle('hidden', !data.profile.bio);
-    $('totalSuccessfulBorrows').textContent = data.totalSuccessfulBorrows || 0;
-    $('totalSuccessfulReturns').textContent = data.totalSuccessfulReturns || 0;
+    $('totalSuccessfulBorrows').textContent = data.totalSuccessfulBorrows;
+    $('totalSuccessfulReturns').textContent = data.totalSuccessfulReturns;
     $('hadithStripText').textContent = data.todayHadith || '';
     $('hadithStrip').classList.toggle('hidden', !data.todayHadith);
-    $('myBooksCount').textContent = data.profile.myBooksCount || 0;
-    $('borrowedCount').textContent = data.profile.borrowedCount || 0;
-    $('lentOutCount').textContent = data.profile.lentOutCount || 0;
-    $('cubeBookCount').textContent = data.totalBooksCount || 0;
-    $('cubeMemberCount').textContent = data.totalMembersCount || 0;
+    $('myBooksCount').textContent = data.profile.myBooksCount;
+    $('borrowedCount').textContent = data.profile.borrowedCount;
+    $('lentOutCount').textContent = data.profile.lentOutCount;
+    $('cubeBookCount').textContent = data.totalBooksCount;
+    $('cubeMemberCount').textContent = data.totalMembersCount;
 
     renderRequestFeed('incomingRequestsList', data.incomingRequests, 'incoming');
     renderRequestFeed('outgoingRequestsList', data.outgoingRequests, 'outgoing');
@@ -351,6 +361,8 @@ function renderRequestFeed(containerId, items, kind) {
   };
   const section = $(sectionMap[kind]);
 
+  // Per-user request: don't clutter the profile with section headers that
+  // have nothing under them — only show a section when it's actually active.
   if (!items || !items.length) {
     if (section) section.classList.add('hidden');
     return;
@@ -379,6 +391,9 @@ function renderRequestFeed(containerId, items, kind) {
         <button class="req-approve" onclick="event.stopPropagation(); confirmReturn(this,'${r.requestId}')">Confirm returned</button>
       </div>`;
     }
+    // "lentout" (books I own that are currently out) has no action buttons —
+    // the actual return confirmation lives in the "return" section above once
+    // the borrower asks for it back; this one is just informational.
     const dateOrBlank = (label, d) => formatDate(d) ? ` · ${label} ${formatDate(d)}` : '';
     const personLine = kind === 'incoming'
       ? `From ${r.requesterName || 'Unknown'} · asked for ${r.durationDays} days${dateOrBlank('requested', r.requestDate)}`
@@ -400,6 +415,8 @@ function renderRequestFeed(containerId, items, kind) {
   }).join('');
 }
 
+// Tapping a request/borrowed card in the profile jumps to Explore filtered
+// down to just that one book (fix requested: "make the list clickable").
 window.viewBookFromProfile = (bookId) => {
   singleBookId = bookId;
   goPage('explore');
@@ -427,13 +444,13 @@ window.requestReturn = (btn, id) => guardedAction('return-' + id, btn, async () 
   btn.textContent = 'Return requested';
   btn.disabled = true;
   await api('requestReturn', { requestId: id }).catch(err => { refreshProfile(); throw err; });
-  showToast('Return requested — waiting for owner to confirm.');
+  showToast('Return requested — waiting for the owner to confirm.');
   refreshProfile();
 });
 window.confirmReturn = (btn, id) => guardedAction('confirmreturn-' + id, btn, async () => {
   btn.closest('.req-card').remove();
   await api('confirmReturn', { requestId: id }).catch(err => { refreshProfile(); throw err; });
-  showToast('Return confirmed — book is available again.');
+  showToast('Return confirmed — the book is available again.');
   refreshProfile();
 });
 
@@ -450,15 +467,20 @@ document.querySelectorAll('#detailSquares .square-btn').forEach(btn => {
   };
 });
 
-// EXPLORE PAGE
+// ============================================================= EXPLORE ====
+
 async function refreshBooks() {
+  // #6 — if we've already loaded books this session, show them instantly
+  // (no spinner) and quietly refresh in the background. A real page reload
+  // resets booksLoadedOnce to false automatically, so that still gets a
+  // real fresh load as expected.
   const isFirstLoad = !booksLoadedOnce;
   if (isFirstLoad) $('bookGrid').innerHTML = '<p class="empty-hint">Loading…</p>';
   else renderBookGrid();
 
   try {
     const data = await api('listBooks', {});
-    allBooks = data.books || [];
+    allBooks = data.books;
     booksLoadedOnce = true;
 
     if (singleBookId) {
@@ -468,12 +490,15 @@ async function refreshBooks() {
     }
     renderBookGrid();
 
+    // If we arrived here to view one specific book, open it straight away.
     if (singleBookId) {
       const b = allBooks.find(x => x.bookId === singleBookId);
       if (b) openBookModal(singleBookId);
     }
   } catch (err) {
     if (isFirstLoad) { showToast(err.message); $('bookGrid').innerHTML = ''; }
+    // On a background refresh, a failed silent retry shouldn't nuke what's
+    // already correctly on screen — just leave the last-known-good data.
   }
 }
 
@@ -493,10 +518,6 @@ $('filterBtn').onclick = () => $('filterChips').scrollIntoView({ behavior: 'smoo
 function renderBookGrid() {
   const q = $('bookSearch').value.trim().toLowerCase();
   let list = allBooks.slice();
-
-  // Hide hidden books for non-staff users unless owned
-  const isStaff = currentUser && currentUser.isStaff;
-  list = list.filter(b => !b.hidden || isStaff || b.isMine);
 
   if (singleBookId) {
     list = list.filter(b => b.bookId === singleBookId);
@@ -519,7 +540,7 @@ function renderBookGrid() {
 
   const grid = $('bookGrid');
   if (!list.length) {
-    grid.innerHTML = '<p class="empty-hint">No books match your criteria.</p>';
+    grid.innerHTML = '<p class="empty-hint">No books match here yet.</p>';
     return;
   }
   grid.innerHTML = list.map(b => {
@@ -528,15 +549,13 @@ function renderBookGrid() {
       : 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + escapeHtml(b.borrowerName) : '');
     const statusClass = b.status === 'available' ? 'available' : 'unavailable';
     const pageBadge = b.pageCount ? `<div class="page-count-badge">${escapeHtml(String(b.pageCount))}p</div>` : '';
-    const hiddenBadge = (isStaff && b.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
-
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
       <div class="book-cover-wrap">
         <img src="${driveImg(b.imageFileId)}" alt="">
         ${pageBadge}
       </div>
       <div class="book-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}${hiddenBadge}</div>
+        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
         <div class="sub">${escapeHtml(b.writer || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
@@ -545,7 +564,9 @@ function renderBookGrid() {
   }).join('');
 }
 
-// BOOK DETAIL MODAL
+// ------------------------------------------------------------ BOOK MODAL --
+// The modal is shown FIRST, instantly, then filled in — this both feels
+// faster and guarantees the popup can never silently fail to appear again.
 window.openBookModal = (bookId) => {
   const b = allBooks.find(x => x.bookId === bookId);
   if (!b) return;
@@ -561,10 +582,13 @@ window.openBookModal = (bookId) => {
 
     renderModalStatusArea(b);
   } catch (err) {
-    showToast('Could not load full details.');
+    showToast('Could not load full details — please try again.');
   }
 };
 
+// Split out from openBookModal so an optimistic frontend update (e.g. the
+// WhatsApp button unlocking instantly on request, before the server call
+// even finishes) can re-render just this part without a full reopen.
 function renderModalStatusArea(b) {
   const statusEl = $('modalStatus');
   const borrowArea = $('modalBorrowArea');
@@ -572,7 +596,6 @@ function renderModalStatusArea(b) {
   const deleteBtn = $('modalDeleteBtn');
   const editIcon = $('modalEditIconBtn');
   const waBtn = $('modalWhatsappBtn');
-  const hideBtn = $('modalHideBookBtn');
 
   borrowArea.classList.add('hidden');
   cancelBtn.classList.add('hidden');
@@ -581,6 +604,8 @@ function renderModalStatusArea(b) {
   waBtn.classList.add('disabled');
   waBtn.removeAttribute('href');
 
+  // Staff-only hide/unhide control — hidden from everyone else.
+  const hideBtn = $('modalHideBookBtn');
   if (currentUser && currentUser.isStaff) {
     hideBtn.classList.remove('hidden');
     hideBtn.textContent = b.hidden ? 'Unhide this book' : 'Hide this book';
@@ -599,7 +624,12 @@ function renderModalStatusArea(b) {
   } else if (b.myPendingRequestId) {
     statusEl.textContent = 'You already requested this book.';
     cancelBtn.classList.remove('hidden');
-    if (b.ownerWhatsapp) waBtn.classList.remove('disabled');
+    // A pending request unlocks the WhatsApp button — but the number itself
+    // is only revealed after a password re-confirm (see #24), so we don't
+    // set an href at all; the click handler below opens that confirm step.
+    if (b.ownerWhatsapp) {
+      waBtn.classList.remove('disabled');
+    }
   } else {
     statusEl.textContent = 'Available to borrow.';
     borrowArea.classList.remove('hidden');
@@ -609,6 +639,9 @@ function renderModalStatusArea(b) {
 $('closeModalBtn').onclick = () => $('bookModal').classList.add('hidden');
 $('bookModal').querySelector('.modal-backdrop').onclick = () => $('bookModal').classList.add('hidden');
 
+// #24 — WhatsApp button never navigates directly. It's a plain <a> with no
+// href now; a tap opens the password-confirm popup first, and only on a
+// correct password do we get the real number back and open the chat.
 $('modalWhatsappBtn').onclick = (e) => {
   e.preventDefault();
   if ($('modalWhatsappBtn').classList.contains('disabled')) return;
@@ -617,19 +650,18 @@ $('modalWhatsappBtn').onclick = (e) => {
   $('waConfirmModal').classList.remove('hidden');
   $('waConfirmPassword').focus();
 };
-
 $('modalHideBookBtn').onclick = (e) => guardedAction('hidebook', e.target, async () => {
   if (!activeModalBook) return;
   const b = activeModalBook;
   const newHidden = !b.hidden;
+  const prev = b.hidden;
   b.hidden = newHidden;
   renderModalStatusArea(b);
   try {
     await api('setHidden', { targetType: 'book', targetId: b.bookId, hidden: newHidden });
-    showToast(newHidden ? 'Book hidden from public library.' : 'Book is visible in public library.');
-    refreshBooks();
+    showToast(newHidden ? 'Book hidden from public view.' : 'Book is visible again.');
   } catch (err) {
-    b.hidden = !newHidden;
+    b.hidden = prev;
     renderModalStatusArea(b);
     throw err;
   }
@@ -661,6 +693,10 @@ $('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.
   const book = activeModalBook;
   const duration = parseInt($('modalDuration').value, 10) || 7;
 
+  // Instant optimistic unlock — the person sees the WhatsApp button light up
+  // right away, before the server round-trip even finishes. A temporary
+  // placeholder ID is enough to satisfy the "has a pending request" check;
+  // it gets replaced with the real one below once the server responds.
   book.myPendingRequestId = 'pending-optimistic';
   renderModalStatusArea(book);
   showToast('Borrow request sent!');
@@ -670,6 +706,7 @@ $('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.
     book.myPendingRequestId = data.requestId || book.myPendingRequestId;
     refreshBooks();
   } catch (err) {
+    // Roll back the optimistic unlock if the server actually rejected it.
     book.myPendingRequestId = null;
     if (activeModalBook === book) renderModalStatusArea(book);
     showToast(err.message);
@@ -686,7 +723,7 @@ $('modalCancelReqBtn').onclick = (e) => guardedAction('cancelbook-' + activeModa
 });
 
 $('modalDeleteBtn').onclick = (e) => guardedAction('delbook-' + activeModalBook.bookId, e.target, async () => {
-  if (!confirm('Delete "' + (activeModalBook.bookName || 'this book') + '" from library?')) return;
+  if (!confirm('Delete "' + (activeModalBook.bookName || 'this book') + '" from the library?')) return;
   const bookId = activeModalBook.bookId;
   $('bookModal').classList.add('hidden');
   await api('deleteBook', { bookId }).catch(err => { refreshBooks(); throw err; });
@@ -703,29 +740,25 @@ $('modalEditIconBtn').onclick = () => {
   $('editMetaModal').classList.remove('hidden');
 };
 
-// MEMBERS PAGE
-let lastMembersData = null;
+// ========================================================= MEMBERS =========
+
+let lastMembersData = null; // cached full response (includes leaderboard), for instant re-render
 
 function renderMembersUI(data) {
-  allMembers = data.members || [];
-  const isStaff = currentUser && currentUser.isStaff;
-
-  // Filter hidden users for non-staff members (#11)
-  const visibleMembers = allMembers.filter(m => !m.hidden || isStaff);
+  allMembers = data.members;
 
   const lb = data.leaderboard || {};
   const lbParts = [];
-  if (lb.topOwner) lbParts.push(`<div class="lb-item">📚 <b>${escapeHtml(lb.topOwner.name)}</b> — top book owner (${lb.topOwner.count} books)</div>`);
-  if (lb.topBorrower) lbParts.push(`<div class="lb-item">🤝 <b>${escapeHtml(lb.topBorrower.name)}</b> — top borrower (${lb.topBorrower.count} books)</div>`);
-  if (lb.topRequester) lbParts.push(`<div class="lb-item">🙋 <b>${escapeHtml(lb.topRequester.name)}</b> — most active requester (${lb.topRequester.count})</div>`);
+  if (lb.topOwner) lbParts.push(`<div class="lb-item">📚 <b>${escapeHtml(lb.topOwner.name)}</b> — top owner (${lb.topOwner.count})</div>`);
+  if (lb.topBorrower) lbParts.push(`<div class="lb-item">🤝 <b>${escapeHtml(lb.topBorrower.name)}</b> — top borrower (${lb.topBorrower.count})</div>`);
+  if (lb.topRequester) lbParts.push(`<div class="lb-item">🙋 <b>${escapeHtml(lb.topRequester.name)}</b> — most active (${lb.topRequester.count})</div>`);
   const lbEl = $('membersLeaderboard');
   if (lbParts.length) { lbEl.classList.remove('hidden'); lbEl.innerHTML = lbParts.join(''); }
   else { lbEl.classList.add('hidden'); }
 
-  $('membersList').innerHTML = visibleMembers.map(m => {
+  $('membersList').innerHTML = allMembers.map(m => {
     const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
     const isSelf = currentUser && String(m.id) === String(currentUser.id);
-    const hiddenTag = (isStaff && m.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
     return `
     <div class="member-card">
       <div class="dp-wrap">
@@ -733,7 +766,7 @@ function renderMembersUI(data) {
         <span class="level-badge" title="Level ${m.level}">Lv ${m.level}</span>
       </div>
       <div class="member-body">
-        <div class="name">${escapeHtml(m.displayName)}${hiddenTag}</div>
+        <div class="name">${escapeHtml(m.displayName)}</div>
         ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
         <div class="stats">Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}</div>
       </div>
@@ -744,7 +777,7 @@ function renderMembersUI(data) {
 
 async function refreshMembers() {
   const isFirstLoad = !membersLoadedOnce;
-  if (isFirstLoad) $('membersList').innerHTML = '<p class="empty-hint">Loading members…</p>';
+  if (isFirstLoad) $('membersList').innerHTML = '<p class="empty-hint">Loading…</p>';
   else if (lastMembersData) renderMembersUI(lastMembersData);
 
   try {
@@ -765,206 +798,8 @@ window.sendSalam = (btn, targetId) => guardedAction('salam-' + targetId, btn, as
   setTimeout(() => { btn.classList.remove('faded'); btn.disabled = false; }, 30 * 60 * 1000);
 });
 
-// FULL LIVE UPDATE PAGE (#15)
-let lastLiveUpdateData = null;
+// ======================================================== ADD BOOKS =======
 
-function renderFullLiveUpdateList(data) {
-  const container = $('fullLiveUpdateList');
-  if (!data.updates || !data.updates.length) {
-    container.classList.add('empty-hint');
-    container.textContent = 'No updates yet — stay tuned!';
-    return;
-  }
-  container.classList.remove('empty-hint');
-  container.innerHTML = data.updates.map(u => `
-    <div class="fb-item">
-      ${u.imageFileId ? `<img class="fb-thumb" src="${driveImg(u.imageFileId)}" alt="">` : `<div class="fb-icon">${pickEventIcon(u.text)}</div>`}
-      <div class="fb-body">
-        <div class="fb-text">${escapeHtml(u.text)}</div>
-        <div class="fb-time">${timeAgo(u.createdAt)}</div>
-      </div>
-    </div>`).join('');
-}
-
-async function refreshFullLiveUpdates() {
-  if (lastLiveUpdateData) renderFullLiveUpdateList(lastLiveUpdateData);
-  else { $('fullLiveUpdateList').classList.add('empty-hint'); $('fullLiveUpdateList').textContent = 'Loading updates…'; }
-
-  try {
-    const data = await api('getLiveUpdates', {});
-    lastLiveUpdateData = data;
-    renderFullLiveUpdateList(data);
-  } catch (err) {
-    if (!lastLiveUpdateData) $('fullLiveUpdateList').textContent = err.message;
-  }
-}
-
-// FEATURED BOOK PAGES (#16)
-async function refreshFeaturedPosts() {
-  const container = $('featuredGallery');
-  if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">Loading featured posts…</p>';
-  else renderFeaturedGallery();
-
-  try {
-    const data = await api('getFeaturedPosts', {});
-    allFeaturedPosts = data.posts || [];
-    featuredLoadedOnce = true;
-    renderFeaturedGallery();
-  } catch (err) {
-    if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">No featured posts yet.</p>';
-  }
-}
-
-$('featuredSearch').oninput = () => renderFeaturedGallery();
-$('featuredSort').onchange = () => renderFeaturedGallery();
-
-function renderFeaturedGallery() {
-  const q = $('featuredSearch').value.trim().toLowerCase();
-  const sort = $('featuredSort').value;
-  let list = allFeaturedPosts.slice();
-
-  if (q) {
-    list = list.filter(p =>
-      String(p.bookName || '').toLowerCase().includes(q) ||
-      String(p.writer || '').toLowerCase().includes(q) ||
-      String(p.memberName || '').toLowerCase().includes(q)
-    );
-  }
-
-  if (sort === 'oldest') {
-    list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  } else if (sort === 'members') {
-    list.sort((a, b) => String(a.memberName || '').localeCompare(String(b.memberName || '')));
-  } else {
-    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }
-
-  const gallery = $('featuredGallery');
-  if (!list.length) {
-    gallery.innerHTML = '<p class="empty-hint">No featured book pages found.</p>';
-    return;
-  }
-
-  gallery.innerHTML = list.map(p => `
-    <div class="featured-card" onclick="openFeaturedZoomModal('${p.id}')">
-      <div class="featured-card-img-wrap">
-        <img src="${driveImg(p.imageFileId)}" alt="">
-      </div>
-      <div class="featured-card-body">
-        <div class="featured-book-title">${escapeHtml(p.bookName || 'Featured Excerpt')}</div>
-        <div class="featured-post-owner">By ${escapeHtml(p.memberName || 'Member')}</div>
-      </div>
-    </div>
-  `).join('');
-}
-
-window.openFeaturedZoomModal = (postId) => {
-  const p = allFeaturedPosts.find(x => x.id === postId);
-  if (!p) return;
-  $('zoomBookTitle').textContent = p.bookName || 'Book Page Excerpt';
-  $('zoomMetaLine').textContent = 'Shared by ' + (p.memberName || 'Member') + ' · ' + (p.writer ? 'Writer: ' + p.writer : '');
-  $('zoomModalImg').src = driveImg(p.imageFileId);
-  $('featuredZoomModal').classList.remove('hidden');
-};
-
-$('closeFeaturedZoomBtn').onclick = () => $('featuredZoomModal').classList.add('hidden');
-$('closeFeaturedZoomBackdrop').onclick = () => $('featuredZoomModal').classList.add('hidden');
-
-// POST FEATURED MODAL
-$('openPostFeaturedBtn').onclick = () => {
-  selectedFeaturedBook = null;
-  pendingFeaturedImageB64 = '';
-  $('featuredImageInput').value = '';
-  $('featuredImgPreviewWrap').classList.add('hidden');
-  $('selectedFeaturedBookId').value = '';
-  $('selectedFeaturedBookLabel').textContent = '';
-  $('featuredBookSearch').value = '';
-  $('featuredBookSearchResults').innerHTML = '';
-  $('postFeaturedError').textContent = '';
-  $('confirmPostFeaturedBtn').disabled = true;
-  $('postFeaturedModal').classList.remove('hidden');
-};
-
-$('closePostFeaturedBtn').onclick = () => $('postFeaturedModal').classList.add('hidden');
-$('postFeaturedModal').querySelector('.modal-backdrop').onclick = () => $('postFeaturedModal').classList.add('hidden');
-
-$('featuredImageInput').onchange = async () => {
-  const file = $('featuredImageInput').files[0];
-  if (!file) return;
-  const statusEl = $('featuredCompressStatus');
-  statusEl.classList.remove('hidden');
-  statusEl.textContent = 'Compressing image under 100KB…';
-
-  try {
-    pendingFeaturedImageB64 = await compressImage(file, 100);
-    $('featuredImgPreview').src = pendingFeaturedImageB64;
-    $('featuredImgPreviewWrap').classList.remove('hidden');
-    statusEl.textContent = 'Image compressed successfully.';
-    validateFeaturedPostForm();
-  } catch (err) {
-    statusEl.textContent = 'Error compressing image: ' + err.message;
-  }
-};
-
-$('featuredBookSearch').oninput = () => {
-  const q = $('featuredBookSearch').value.trim().toLowerCase();
-  const resultsEl = $('featuredBookSearchResults');
-  if (!q) { resultsEl.innerHTML = ''; return; }
-
-  const matches = allBooks.filter(b =>
-    String(b.bookName || '').toLowerCase().includes(q) ||
-    String(b.writer || '').toLowerCase().includes(q)
-  ).slice(0, 5);
-
-  if (!matches.length) {
-    resultsEl.innerHTML = '<p class="empty-hint">No matching book found in library.</p>';
-    return;
-  }
-
-  resultsEl.innerHTML = matches.map(b => `
-    <div class="req-card" style="cursor:pointer;" onclick="selectBookForFeatured('${b.bookId}')">
-      <img src="${driveImg(b.imageFileId)}" alt="">
-      <div class="req-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
-        <div class="meta">${escapeHtml(b.writer || '')}</div>
-      </div>
-    </div>
-  `).join('');
-};
-
-window.selectBookForFeatured = (bookId) => {
-  const b = allBooks.find(x => x.bookId === bookId);
-  if (!b) return;
-  selectedFeaturedBook = b;
-  $('selectedFeaturedBookId').value = b.bookId;
-  $('selectedFeaturedBookLabel').textContent = 'Mentioned: ' + b.bookName + (b.writer ? ' (' + b.writer + ')' : '');
-  $('featuredBookSearchResults').innerHTML = '';
-  validateFeaturedPostForm();
-};
-
-function validateFeaturedPostForm() {
-  const ok = pendingFeaturedImageB64 && selectedFeaturedBook;
-  $('confirmPostFeaturedBtn').disabled = !ok;
-}
-
-$('confirmPostFeaturedBtn').onclick = (e) => guardedAction('postfeatured', e.target, async () => {
-  if (!pendingFeaturedImageB64 || !selectedFeaturedBook) return;
-  $('postFeaturedError').textContent = '';
-
-  await api('addFeaturedPost', {
-    imageBase64: pendingFeaturedImageB64,
-    bookId: selectedFeaturedBook.bookId,
-    bookName: selectedFeaturedBook.bookName,
-    writer: selectedFeaturedBook.writer
-  }).catch(err => { $('postFeaturedError').textContent = err.message; throw err; });
-
-  $('postFeaturedModal').classList.add('hidden');
-  showToast('Posted excerpt to Featured section!');
-  refreshFeaturedPosts();
-  refreshFullLiveUpdates();
-});
-
-// ADD BOOKS PAGE
 $('bookFilesInput').onchange = async () => {
   const files = Array.from($('bookFilesInput').files);
   if (!files.length) return;
@@ -973,16 +808,16 @@ $('bookFilesInput').onchange = async () => {
   statusEl.classList.remove('hidden');
 
   for (let i = 0; i < files.length; i++) {
-    statusEl.textContent = 'Compressing photo ' + (i + 1) + ' of ' + files.length + '…';
+    statusEl.textContent = 'Compressing image ' + (i + 1) + ' of ' + files.length + '…';
     try {
       const base64 = await compressImage(files[i], 100);
       pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '', pageCount: '' });
     } catch (err) {
-      showToast('Skipped photo: ' + err.message);
+      showToast('Skipped one image: ' + err.message);
     }
     renderAddPreview();
   }
-  statusEl.textContent = pendingBookFiles.length + ' photo(s) ready (<100KB each).';
+  statusEl.textContent = pendingBookFiles.length + ' image(s) ready — under 100KB each.';
   setTimeout(() => statusEl.classList.add('hidden'), 2000);
 };
 
@@ -1032,6 +867,7 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
     return;
   }
 
+  // mode === 'existing': this book is already in the library — save to the server.
   const bookId = editMetaContext.bookId;
   $('editMetaModal').classList.add('hidden');
   await api('editBook', { bookId, bookName, writer, publisher, pageCount });
@@ -1050,7 +886,7 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
   const data = await api('addBooks', { files: pendingBookFiles })
     .catch(err => { $('addBooksError').textContent = err.message; throw err; });
 
-  $('addBooksSuccess').textContent = data.added.length + ' book(s) added to library.';
+  $('addBooksSuccess').textContent = data.added.length + ' book(s) added to the library.';
   pendingBookFiles = [];
   $('bookFilesInput').value = '';
   $('addBooksPreview').innerHTML = '';
@@ -1059,26 +895,14 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
   if (data.leveledUp) showToast('🎉 Level up! You reached Level ' + data.newLevel + '!');
 });
 
-// GREETING POPUP
+// ============================================== SIGNUP GREETING POPUP (#13)
 $('greetingPopupOkBtn').onclick = () => $('greetingPopupModal').classList.add('hidden');
 
-// HADIYA (FREE GIFTS) (#12)
-$('hadiyaBtn').onclick = () => {
-  $('hadiyaModal').classList.remove('hidden');
-  $('hadiyaRedDot').classList.add('hidden');
-};
-$('closeHadiyaBtn').onclick = () => $('hadiyaModal').classList.add('hidden');
-$('hadiyaModal').querySelector('.modal-backdrop').onclick = () => $('hadiyaModal').classList.add('hidden');
-$('hadiyaDownloadBtn').onclick = () => {
-  $('hadiyaRedDot').classList.add('hidden');
-  showToast('Downloading gift book...');
-};
-
-// NOTIFICATIONS
-let lastNotifData = null;
+// ===================================================== NOTIFICATIONS (#3) ==
+let lastNotifData = null; // cached response for instant re-open, matching the Explore/Members pattern
 
 function renderNotifList(data) {
-  if (!data.notifications || !data.notifications.length) {
+  if (!data.notifications.length) {
     $('notifList').classList.add('empty-hint');
     $('notifList').textContent = 'No notifications yet.';
     return;
@@ -1091,6 +915,7 @@ function renderNotifList(data) {
         <div class="fb-text"><b>${escapeHtml(n.title)}</b> — ${escapeHtml(n.body)}</div>
         <div class="fb-time">${timeAgo(n.createdAt)}</div>
       </div>
+      ${n.read ? '' : '<div class="fb-unread-dot"></div>'}
     </div>`).join('');
 }
 
@@ -1100,19 +925,24 @@ async function checkNotifRedDot() {
     const data = await api('listNotifications', {});
     lastNotifData = data;
     $('notifRedDot').classList.toggle('hidden', data.unreadCount === 0);
-  } catch (err) { }
+  } catch (err) { /* silent — a failed badge check shouldn't interrupt anything */ }
 }
 
 $('notifBellBtn').onclick = async () => {
   $('notifModal').classList.remove('hidden');
 
-  if (lastNotifData) renderNotifList(lastNotifData);
-  else { $('notifList').classList.add('empty-hint'); $('notifList').textContent = 'Loading…'; }
+  if (lastNotifData) {
+    renderNotifList(lastNotifData); // instant — no spinner if we already have data
+  } else {
+    $('notifList').classList.add('empty-hint');
+    $('notifList').textContent = 'Loading…';
+  }
 
   try {
     const data = await api('listNotifications', {});
     lastNotifData = data;
     renderNotifList(data);
+    // Reading the list IS the "mark as read" action, per spec.
     if (data.unreadCount > 0) {
       api('markNotificationsRead', {}).then(() => $('notifRedDot').classList.add('hidden')).catch(() => {});
     } else {
@@ -1120,12 +950,46 @@ $('notifBellBtn').onclick = async () => {
     }
   } catch (err) {
     if (!lastNotifData) $('notifList').textContent = err.message;
+    // If we already showed cached data, a failed refresh shouldn't wipe it.
   }
 };
 $('closeNotifBtn').onclick = () => $('notifModal').classList.add('hidden');
 $('notifModal').querySelector('.modal-backdrop').onclick = () => $('notifModal').classList.add('hidden');
 
-// EDIT PROFILE
+// ============================================================ #15 LIVE UPDATE
+let lastLiveUpdateData = null;
+
+function renderLiveUpdateList(data) {
+  if (!data.updates.length) {
+    $('liveUpdateList').classList.add('empty-hint');
+    $('liveUpdateList').textContent = 'No activity yet — be the first!';
+    return;
+  }
+  $('liveUpdateList').classList.remove('empty-hint');
+  $('liveUpdateList').innerHTML = data.updates.map(u => `
+    <div class="fb-item">
+      ${u.imageFileId ? `<img class="fb-thumb" src="${driveImg(u.imageFileId)}" alt="">` : `<div class="fb-icon">${pickEventIcon(u.text)}</div>`}
+      <div class="fb-body">
+        <div class="fb-text">${escapeHtml(u.text)}</div>
+        <div class="fb-time">${timeAgo(u.createdAt)}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function refreshLiveUpdates() {
+  if (lastLiveUpdateData) renderLiveUpdateList(lastLiveUpdateData);
+  else { $('liveUpdateList').classList.add('empty-hint'); $('liveUpdateList').textContent = 'Loading…'; }
+
+  try {
+    const data = await api('getLiveUpdates', {});
+    lastLiveUpdateData = data;
+    renderLiveUpdateList(data);
+  } catch (err) {
+    if (!lastLiveUpdateData) $('liveUpdateList').textContent = err.message;
+  }
+}
+
+// ==================================================== EDIT PROFILE (#20) ==
 let editProfilePendingDp = null;
 
 $('openEditProfileBtn').onclick = () => {
@@ -1145,7 +1009,7 @@ $('editProfileDpInput').onchange = async () => {
     editProfilePendingDp = await compressImage(file, 100);
     $('editProfileDpPreview').src = editProfilePendingDp;
   } catch (err) {
-    showToast('Could not use image: ' + err.message);
+    showToast('Could not use that image: ' + err.message);
   }
 };
 
@@ -1164,13 +1028,17 @@ $('editProfileSaveBtn').onclick = (e) => guardedAction('editprofile', e.target, 
   refreshProfile();
 });
 
-// NAVIGATION
+// ============================================================ NAVIGATION ==
+
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.onclick = () => { singleBookId = null; goPage(btn.dataset.page); };
 });
 $('backBtn').onclick = () => goPage('profile');
 
-// STAFF PANEL
+// ================================================================= BOOT ===
+
+// ========================================================= STAFF PANEL ====
+
 let lastStaffPanelData = null;
 
 $('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanelBtn'), async () => {
@@ -1199,7 +1067,7 @@ document.querySelectorAll('[data-stafftab]').forEach(btn => {
 });
 
 function renderStaffMembers(data) {
-  $('staffMembersTab').innerHTML = (data.members || []).map(m => `
+  $('staffMembersTab').innerHTML = data.members.map(m => `
     <div class="req-card">
       <div class="req-card-body">
         <div class="name">${escapeHtml(m.displayName)} ${m.role === 'moderator' ? '<span class="role-badge">MOD</span>' : ''}${m.hidden ? '<span class="role-badge hidden-badge">HIDDEN</span>' : ''}</div>
@@ -1213,7 +1081,7 @@ function renderStaffMembers(data) {
 }
 
 function renderStaffLog(log) {
-  if (!log || !log.length) { $('staffLogTab').innerHTML = '<p class="empty-hint">No WhatsApp access logged yet.</p>'; return; }
+  if (!log || !log.length) { $('staffLogTab').innerHTML = '<p class="empty-hint">No WhatsApp access yet.</p>'; return; }
   $('staffLogTab').innerHTML = log.map(l => `
     <div class="req-card">
       <div class="req-card-body">
@@ -1223,6 +1091,9 @@ function renderStaffLog(log) {
     </div>`).join('');
 }
 
+// Optimistic: flip the badge instantly and save quietly in the background —
+// same pattern as the rest of the app (approve/reject/etc). On failure we
+// revert the local copy and re-render so the UI never lies about the state.
 window.toggleModerator = (btn, userId, makeModerator) => guardedAction('setmod-' + userId, btn, async () => {
   const m = lastStaffPanelData.members.find(x => x.id === userId);
   if (!m) return;
@@ -1237,7 +1108,6 @@ window.toggleModerator = (btn, userId, makeModerator) => guardedAction('setmod-'
     throw err;
   }
 });
-
 window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, btn, async () => {
   const list = targetType === 'book' ? [] : lastStaffPanelData.members;
   const m = list.find(x => x.id === targetId);
@@ -1245,15 +1115,12 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('seth
   if (m) { m.hidden = hidden; renderStaffMembers(lastStaffPanelData); }
   try {
     await api('setHidden', { targetType, targetId, hidden });
-    showToast(hidden ? 'User hidden from public directory.' : 'User is visible in directory.');
-    refreshMembers();
   } catch (err) {
     if (m) { m.hidden = prevHidden; renderStaffMembers(lastStaffPanelData); }
     throw err;
   }
 });
 
-// BOOT
 (function boot() {
   const startHash = (location.hash || '').slice(1);
   if (currentUser) {
@@ -1262,10 +1129,15 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('seth
     showAuthTab('loginForm');
     renderPage('auth');
   }
-  setTimeout(hideBootLoader, 200);
+  // Small delay so the boot text doesn't just flash for logged-out users,
+  // while still feeling instant on a normal connection.
+  setTimeout(hideBootLoader, 250);
 })();
 
-// PWA INSTALL
+// ============================================================ PWA INSTALL ==
+// Android/Chrome fires this event when the app is installable — we capture
+// it and trigger it ourselves from our own "Install" button instead of
+// waiting for the browser's default mini-bar.
 let deferredInstallPrompt = null;
 const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -1279,7 +1151,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 if (isIos && !isStandalone && !localStorage.getItem('bh_install_dismissed')) {
-  $('installBannerText').textContent = 'Add Baitul Hikmah to your Home Screen: tap Share, then "Add to Home Screen".';
+  $('installBannerText').textContent = 'Add Baitul Hikmah to your Home Screen: tap the Share icon, then "Add to Home Screen".';
   $('installBannerBtn').textContent = 'Got it';
   $('installBanner').classList.remove('hidden');
 }
@@ -1296,3 +1168,110 @@ $('installBannerDismiss').onclick = () => {
   localStorage.setItem('bh_install_dismissed', '1');
   $('installBanner').classList.add('hidden');
 };
+
+// ==================================================== PUSH NOTIFICATIONS ==
+// Uses Firebase Cloud Messaging (see firebase-config.js + README "Notifications
+// Setup"). If firebase-config.js hasn't been filled in yet, this quietly
+// does nothing — the rest of the app is unaffected either way.
+function firebaseIsConfigured() {
+  return typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_YOUR') !== 0;
+}
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.register('sw.js');
+  } catch (err) {
+    console.warn('Service worker registration failed:', err);
+    return null;
+  }
+}
+
+// Whenever a NEW service worker (new app version) takes control of the page,
+// reload exactly once so the user always ends up on fully-matching, fresh
+// code — this is what fixes "sometimes it doesn't update" / stale-version
+// bugs like mismatched button IDs between an old cached app.js and a newer
+// index.html. Guarded so it can only ever fire one reload per page load.
+if ('serviceWorker' in navigator) {
+  let bhReloadedOnce = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (bhReloadedOnce) return;
+    bhReloadedOnce = true;
+    window.location.reload();
+  });
+}
+
+async function maybeShowNotifBanner() {
+  if (!firebaseIsConfigured()) return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
+  if (localStorage.getItem('bh_notif_dismissed')) return;
+  $('notifBanner').classList.remove('hidden');
+}
+
+$('notifBannerBtn').onclick = () => guardedAction('enable-notifs', $('notifBannerBtn'), async () => {
+  $('notifBanner').classList.add('hidden');
+  await enablePushNotifications();
+});
+$('notifBannerDismiss').onclick = () => {
+  localStorage.setItem('bh_notif_dismissed', '1');
+  $('notifBanner').classList.add('hidden');
+};
+
+async function enablePushNotifications() {
+  if (!firebaseIsConfigured()) { showToast('Notifications aren\u2019t set up yet.'); return; }
+  const reg = await registerServiceWorker();
+  if (!reg) { showToast('Notifications need a supported browser.'); return; }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') { showToast('Notifications permission was not granted.'); return; }
+
+  const app = firebase.initializeApp(FIREBASE_CONFIG, 'main');
+  const messaging = firebase.messaging(app);
+  const token = await messaging.getToken({ vapidKey: FIREBASE_VAPID_KEY, serviceWorkerRegistration: reg });
+  if (!token) { showToast('Could not get a notification token.'); return; }
+
+  // Data-only messages don't auto-display while the app tab is actually
+  // open (that only happens in the background via sw.js) — so we show it
+  // ourselves here, just as boldly, and refresh whatever's on screen.
+  //
+  // IMPORTANT: this uses reg.showNotification() (the service-worker route),
+  // NOT `new Notification()`. iOS Safari does not support triggering
+  // notifications via the page-level Notification constructor at all —
+  // only through a service worker registration. Using showNotification()
+  // here means foreground notifications work identically on Android and
+  // iPhone, instead of silently failing on iPhone specifically.
+  messaging.onMessage((payload) => {
+    const title = (payload.data && payload.data.title) || 'Baitul Hikmah';
+    const body = (payload.data && payload.data.body) || '';
+    if (Notification.permission === 'granted' && reg && reg.showNotification) {
+      reg.showNotification(title, {
+        body,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        requireInteraction: true,
+        vibrate: [200, 100, 200]
+      });
+    } else {
+      showToast(title + ': ' + body);
+    }
+    if (currentUser && (location.hash.slice(1) || 'profile') === 'profile') refreshProfile();
+  });
+
+  if (currentUser) {
+    await api('savePushToken', { pushToken: token });
+  }
+  showToast('Notifications enabled!');
+}
+
+// Kick off service worker registration. If notifications were already
+// granted in a previous visit, quietly refresh the token (FCM tokens can
+// rotate) — otherwise, offer the banner if logged in.
+registerServiceWorker().then(() => {
+  if (!currentUser) return;
+  if (firebaseIsConfigured() && 'Notification' in window && Notification.permission === 'granted') {
+    enablePushNotifications();
+  } else {
+    maybeShowNotifBanner();
+  }
+});

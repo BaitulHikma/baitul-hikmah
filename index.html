@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Baitul Hikmah — Book Borrowing</title>
 
-<!-- Fonts -->
+<!-- Fonts: Amiri gives the display headings a calligraphic Islamic feel,
+     Noto Sans Bengali renders the Bangla book/writer/publisher names,
+     Inter is the clean utility face for UI chrome and Latin text. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="style.css">
 
-<!-- PWA -->
+<!-- PWA: makes the site installable as an app icon on Android and iPhone -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0f0d">
 <link rel="icon" href="icons/favicon.png">
@@ -21,28 +23,29 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Baitul Hikmah">
 
-<!-- Firebase (push notifications) -->
+<!-- Firebase (only used for push notifications — safe to leave as-is even
+     before firebase-config.js is filled in; the app works fine without it) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
-<!-- BOOT LOADER -->
+<!-- ============================================================
+     LOADING SCREEN — shown instantly on first load / page boot
+     ============================================================ -->
 <div id="bootLoader" class="boot-loader">
   <div class="boot-loader-text">Baitul Hikmah</div>
 </div>
 
-<!-- TOP APP BAR -->
+<!-- ============================================================
+     TOP APP BAR — always visible once logged in
+     ============================================================ -->
 <header id="topbar" class="topbar hidden">
   <button id="backBtn" class="icon-btn hidden" aria-label="Back">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
   <div class="topbar-title">Baitul Hikmah</div>
   <div class="topbar-right">
-    <button id="hadiyaBtn" class="icon-btn" aria-label="Hadiya Section" title="Hadiya (Free Gifts)">
-      <span class="hadiya-icon">🎁</span>
-      <span id="hadiyaRedDot" class="notif-red-dot"></span>
-    </button>
     <button id="staffPanelBtn" class="icon-btn hidden" aria-label="Staff panel">
       <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
     </button>
@@ -56,7 +59,9 @@
   </div>
 </header>
 
-<!-- AUTH SCREEN -->
+<!-- ============================================================
+     AUTH SCREEN — sign in / sign up / forgot password
+     ============================================================ -->
 <section id="page-auth" class="page auth-page">
   <div class="auth-wrap">
     <div class="brand">
@@ -155,7 +160,9 @@
   </div>
 </section>
 
-<!-- PROFILE PAGE -->
+<!-- ============================================================
+     PROFILE PAGE (home page after sign-in)
+     ============================================================ -->
 <section id="page-profile" class="page hidden">
   <div id="hadithStrip" class="hadith-strip hidden">
     <div class="hadith-strip-track">
@@ -163,26 +170,22 @@
     </div>
   </div>
 
-  <div class="profile-header-card">
-    <div class="profile-header-top">
-      <div class="profile-dp-wrap" id="openEditProfileBtn">
-        <img id="profileDpImg" src="" alt="">
-        <span class="level-badge" id="profileLevelBadge">Lv -1</span>
-        <span class="dp-edit-pen">
-          <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-      </div>
-      <!-- Refined, subtle successful counts in top corner (#17) -->
-      <div class="success-stats-compact">
-        <div class="stat-chip"><span class="chip-val" id="totalSuccessfulBorrows">0</span> <span class="chip-lbl">borrows</span></div>
-        <div class="stat-chip"><span class="chip-val" id="totalSuccessfulReturns">0</span> <span class="chip-lbl">returns</span></div>
-      </div>
+  <div class="profile-greeting">
+    <div class="profile-dp-wrap" id="openEditProfileBtn">
+      <img id="profileDpImg" src="" alt="">
+      <span class="level-badge" id="profileLevelBadge">Lv 0</span>
+      <span class="dp-edit-pen">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
     </div>
-    <div class="profile-greeting">
-      <p class="id-tag">ID: <span id="profileIdNum"></span></p>
-      <h2 id="profileGreeting"></h2>
-      <p class="profile-bio" id="profileBioLine"></p>
-    </div>
+    <p class="id-tag">Id number: <span id="profileIdNum"></span></p>
+    <h2 id="profileGreeting"></h2>
+    <p class="profile-bio" id="profileBioLine"></p>
+  </div>
+
+  <div class="success-stats-banner">
+    <div><span id="totalSuccessfulBorrows">0</span><span class="stat-label">Successful borrows</span></div>
+    <div><span id="totalSuccessfulReturns">0</span><span class="stat-label">Successful returns</span></div>
   </div>
 
   <div class="cube-row">
@@ -241,10 +244,12 @@
   <button class="btn btn-ghost btn-wide" id="signOutBtn">Sign out</button>
 </section>
 
-<!-- EXPLORE / LIBRARY PAGE -->
+<!-- ============================================================
+     EXPLORE / LIBRARY PAGE
+     ============================================================ -->
 <section id="page-explore" class="page hidden">
   <div class="explore-toolbar">
-    <input type="search" id="bookSearch" placeholder="Search by book, writer, publisher, owner...">
+    <input type="search" id="bookSearch" placeholder="Search book, writer, publisher, or owner...">
     <button id="filterBtn" class="icon-btn" aria-label="Filter">
       <svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
@@ -253,13 +258,15 @@
     <button class="chip active" data-filter="all">All</button>
     <button class="chip" data-filter="mine">My books</button>
     <button class="chip" data-filter="requesting">Requesting</button>
-    <button class="chip" data-filter="requested">Requested (mine)</button>
+    <button class="chip" data-filter="requested">Requested (mine, pending)</button>
     <button class="chip" data-filter="borrowed">Borrowed by me</button>
   </div>
   <div id="bookGrid" class="book-grid"></div>
 </section>
 
-<!-- MEMBERS PAGE -->
+<!-- ============================================================
+     MEMBERS PAGE
+     ============================================================ -->
 <section id="page-members" class="page hidden">
   <h2 class="page-title">Members</h2>
   <div class="members-layout">
@@ -267,123 +274,53 @@
       <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
       <div id="membersList" class="member-list"></div>
     </div>
+    <div class="live-update-panel">
+      <h3 class="live-update-title">📡 Live Update</h3>
+      <div id="liveUpdateList" class="notif-list empty-hint">Loading…</div>
+    </div>
   </div>
 </section>
 
-<!-- LIVE UPDATE PAGE (#15) -->
-<section id="page-liveupdate" class="page hidden">
-  <h2 class="page-title">📡 Live Updates</h2>
-  <p class="form-hint">Real-time activity log across Baitul Hikmah.</p>
-  <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
-</section>
-
-<!-- FEATURED BOOK PAGES (#16) -->
-<section id="page-featured" class="page hidden">
-  <div class="featured-header">
-    <h2 class="page-title" style="margin:0;">Featured Book Pages</h2>
-    <p class="form-hint" style="margin-top:4px;">Read excerpts, quotes &amp; favorite pages shared by members.</p>
+<!-- ============================================================
+     BOOK DETAIL MODAL
+     ============================================================ -->
+<!-- ============================================================
+     WHATSAPP PASSWORD CONFIRM — re-enter password before the
+     owner's WhatsApp number is revealed (security requirement)
+     ============================================================ -->
+<div id="waConfirmModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeWaConfirmBtn">&times;</button>
+    <h3>Confirm it's you</h3>
+    <p class="form-hint">For everyone's safety, re-enter your password to reveal the owner's WhatsApp number. This access is logged.</p>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="waConfirmPassword">
+    </div>
+    <p class="form-error" id="waConfirmError"></p>
+    <button id="waConfirmSubmitBtn" class="btn btn-primary btn-wide">Confirm &amp; Open WhatsApp</button>
   </div>
+</div>
 
-  <div class="featured-toolbar">
-    <input type="search" id="featuredSearch" placeholder="Search book, writer, or member...">
-    <select id="featuredSort" class="featured-sort-select">
-      <option value="newest">Newest first</option>
-      <option value="oldest">Oldest first</option>
-      <option value="members">Categorize by members</option>
-    </select>
-  </div>
-
-  <div id="featuredGallery" class="featured-gallery">
-    <p class="empty-hint">Loading featured posts…</p>
-  </div>
-
-  <!-- Floating Add (+) button to post a book page excerpt -->
-  <button id="openPostFeaturedBtn" class="fab-btn" aria-label="Post a book page">
-    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
-  </button>
-</section>
-
-<!-- ADD BOOKS PAGE -->
-<section id="page-addbooks" class="page hidden">
-  <h2 class="page-title">Add Books</h2>
-  <p class="form-hint">
-    Pick photo(s) from your device. Each image is automatically compressed under 100KB. Tap a thumbnail to add book details (writer, page count, etc.) anytime.
-  </p>
-  <input type="file" id="bookFilesInput" accept="image/*" multiple>
-  <p id="compressStatus" class="form-hint hidden"></p>
-  <div id="addBooksPreview" class="add-preview-grid"></div>
-  <button id="uploadBooksBtn" class="btn btn-primary btn-wide" disabled>Upload books</button>
-  <p class="form-error" id="addBooksError"></p>
-  <p class="form-success" id="addBooksSuccess"></p>
-</section>
-
-<!-- HADIYA (FREE GIFTS) MODAL (#12) -->
-<div id="hadiyaModal" class="modal hidden">
+<!-- ============================================================
+     STAFF PANEL — admin/moderator only: manage moderators, hide
+     accounts/books, and review the WhatsApp access log
+     ============================================================ -->
+<div id="staffPanelModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet">
-    <button class="modal-close" id="closeHadiyaBtn">&times;</button>
-    <h3>🎁 Hadiya (Gift Books)</h3>
-    <p class="form-hint">Free digital books provided according to your level.</p>
-    <div id="hadiyaList" class="card-list">
-      <div class="req-card">
-        <div class="req-card-body">
-          <div class="name">Collect your first Hadiya!</div>
-          <div class="meta">Welcome gift for all Baitul Hikmah members.</div>
-        </div>
-        <div class="req-card-actions">
-          <a id="hadiyaDownloadBtn" href="#" class="btn btn-primary" style="padding:6px 12px; font-size:0.78rem;" download="Baitul_Hikmah_Gift_Book.pdf">Download</a>
-        </div>
-      </div>
+    <button class="modal-close" id="closeStaffPanelBtn">&times;</button>
+    <h3>Staff panel</h3>
+    <div class="staff-tabs">
+      <button class="chip active" data-stafftab="members">Members</button>
+      <button class="chip" data-stafftab="log">WhatsApp access log</button>
     </div>
+    <div id="staffMembersTab"></div>
+    <div id="staffLogTab" class="hidden"></div>
   </div>
 </div>
 
-<!-- FEATURED POST MODAL (Upload & mention book) (#16) -->
-<div id="postFeaturedModal" class="modal hidden">
-  <div class="modal-backdrop"></div>
-  <div class="modal-sheet">
-    <button class="modal-close" id="closePostFeaturedBtn">&times;</button>
-    <h3>Post a Book Page Excerpt</h3>
-    <p class="form-hint">Share 1 photo of a book page you love for public view.</p>
-
-    <div class="field">
-      <label>1. Select page photo from gallery</label>
-      <input type="file" id="featuredImageInput" accept="image/*">
-      <p id="featuredCompressStatus" class="form-hint hidden"></p>
-      <div id="featuredImgPreviewWrap" class="hidden" style="margin-top:8px; text-align:center;">
-        <img id="featuredImgPreview" src="" alt="Page excerpt preview" style="max-height:180px; border-radius:8px; border:1px solid var(--border);">
-      </div>
-    </div>
-
-    <div class="field">
-      <label>2. Search &amp; mention book from library</label>
-      <input type="search" id="featuredBookSearch" placeholder="Type book name or writer...">
-      <div id="featuredBookSearchResults" class="card-list" style="max-height:160px; overflow-y:auto; margin-top:6px;"></div>
-      <input type="hidden" id="selectedFeaturedBookId">
-      <p id="selectedFeaturedBookLabel" class="form-hint" style="color:var(--accent); font-weight:600; margin-top:6px;"></p>
-    </div>
-
-    <p class="form-error" id="postFeaturedError"></p>
-    <button id="confirmPostFeaturedBtn" class="btn btn-primary btn-wide" disabled>Confirm &amp; Post to Featured</button>
-  </div>
-</div>
-
-<!-- FEATURED ZOOM MODAL (High resolution zoom viewer) (#16) -->
-<div id="featuredZoomModal" class="modal hidden" style="z-index:90;">
-  <div class="modal-backdrop" id="closeFeaturedZoomBackdrop"></div>
-  <div class="modal-sheet featured-zoom-sheet">
-    <button class="modal-close" id="closeFeaturedZoomBtn" style="z-index:100; color:#fff;">&times;</button>
-    <div class="zoom-header">
-      <h3 id="zoomBookTitle" style="color:var(--text); margin:0; font-size:1rem;"></h3>
-      <p id="zoomMetaLine" style="color:var(--text-dim); font-size:0.78rem; margin:2px 0 10px;"></p>
-    </div>
-    <div class="zoom-img-container" id="zoomImgContainer">
-      <img id="zoomModalImg" src="" alt="Book page image" class="zoom-img">
-    </div>
-  </div>
-</div>
-
-<!-- BOOK DETAIL MODAL -->
 <div id="bookModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet">
@@ -414,44 +351,16 @@
   </div>
 </div>
 
-<!-- WHATSAPP PASSWORD CONFIRM (#24) -->
-<div id="waConfirmModal" class="modal hidden">
-  <div class="modal-backdrop"></div>
-  <div class="modal-sheet small">
-    <button class="modal-close" id="closeWaConfirmBtn">&times;</button>
-    <h3>Confirm it's you</h3>
-    <p class="form-hint">For security, re-enter your password to reveal WhatsApp access. This action is logged for moderators.</p>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="waConfirmPassword">
-    </div>
-    <p class="form-error" id="waConfirmError"></p>
-    <button id="waConfirmSubmitBtn" class="btn btn-primary btn-wide">Confirm &amp; Open WhatsApp</button>
-  </div>
-</div>
-
-<!-- STAFF PANEL (Admin & Moderators) (#11) -->
-<div id="staffPanelModal" class="modal hidden">
-  <div class="modal-backdrop"></div>
-  <div class="modal-sheet">
-    <button class="modal-close" id="closeStaffPanelBtn">&times;</button>
-    <h3>Staff panel (Admin &amp; Moderators)</h3>
-    <div class="staff-tabs">
-      <button class="chip active" data-stafftab="members">Members</button>
-      <button class="chip" data-stafftab="log">WhatsApp log</button>
-    </div>
-    <div id="staffMembersTab"></div>
-    <div id="staffLogTab" class="hidden"></div>
-  </div>
-</div>
-
-<!-- EDIT BOOK DETAILS POPUP -->
+<!-- ============================================================
+     EDIT BOOK DETAILS POPUP (used for both a pending upload
+     and an already-uploaded book you own)
+     ============================================================ -->
 <div id="editMetaModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet small">
     <button class="modal-close" id="closeEditMetaBtn">&times;</button>
     <h3>Book details</h3>
-    <p class="form-hint">All optional — edit anytime.</p>
+    <p class="form-hint">All optional — leave blank and fill in later if you like.</p>
     <div class="field">
       <label>Book name</label>
       <input type="text" id="editMetaName">
@@ -472,7 +381,6 @@
   </div>
 </div>
 
-<!-- EDIT PROFILE POPUP (#20) -->
 <div id="editProfileModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet small">
@@ -489,13 +397,12 @@
     </div>
     <div class="field">
       <label>Bio</label>
-      <textarea id="editProfileBio" maxlength="300" rows="3" placeholder="Tell other members a little about yourself..."></textarea>
+      <textarea id="editProfileBio" maxlength="300" rows="3" placeholder="Tell other members a little about yourself…"></textarea>
     </div>
     <button id="editProfileSaveBtn" class="btn btn-primary btn-wide">Save changes</button>
   </div>
 </div>
 
-<!-- SIGNUP GREETING POPUP (#13) -->
 <div id="greetingPopupModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet small greeting-popup">
@@ -505,7 +412,6 @@
   </div>
 </div>
 
-<!-- NOTIFICATION BULLETIN MODAL (#3) -->
 <div id="notifModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet notif-sheet">
@@ -515,7 +421,28 @@
   </div>
 </div>
 
-<!-- BOTTOM NAVIGATION (#15: Order: Explore - Profile - Add - Members - Live Update - Featured) -->
+<!-- ============================================================
+     ADD BOOKS PAGE
+     ============================================================ -->
+<section id="page-addbooks" class="page hidden">
+  <h2 class="page-title">Add Books</h2>
+  <p class="form-hint">
+    Pick as many photos as you like. Each one is automatically resized to
+    stay under 500KB. Tap a cover afterwards to add its name, writer and
+    publisher — or skip that and fill it in anytime later from the book's
+    page using the pencil icon.
+  </p>
+  <input type="file" id="bookFilesInput" accept="image/*" multiple>
+  <p id="compressStatus" class="form-hint hidden"></p>
+  <div id="addBooksPreview" class="add-preview-grid"></div>
+  <button id="uploadBooksBtn" class="btn btn-primary btn-wide" disabled>Upload books</button>
+  <p class="form-error" id="addBooksError"></p>
+  <p class="form-success" id="addBooksSuccess"></p>
+</section>
+
+<!-- ============================================================
+     BOTTOM NAVIGATION
+     ============================================================ -->
 <nav id="bottomNav" class="bottom-nav hidden">
   <button class="nav-btn" data-page="explore">
     <svg viewBox="0 0 24 24"><path d="M4 4h7v16H4zM13 4h7v16h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -530,29 +457,27 @@
     <span>Add</span>
   </button>
   <button class="nav-btn" data-page="members">
-    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Members</span>
-  </button>
-  <button class="nav-btn" data-page="liveupdate">
-    <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>Live Update</span>
-  </button>
-  <button class="nav-btn" data-page="featured">
-    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l-3 4h12l-4-5z" fill="currentColor"/></svg>
-    <span>Featured</span>
   </button>
 </nav>
 
 <div id="toast" class="toast hidden"></div>
 
-<!-- INSTALL APP BANNER -->
+<!-- ============================================================
+     INSTALL APP BANNER — Android shows a real "Install" button;
+     iPhone gets manual Add-to-Home-Screen instructions (Apple
+     doesn't allow websites to trigger this automatically).
+     ============================================================ -->
 <div id="installBanner" class="install-banner hidden">
   <span id="installBannerText">Install Baitul Hikmah as an app for quick access.</span>
   <button id="installBannerBtn" class="btn btn-primary">Install</button>
   <button id="installBannerDismiss" class="icon-btn" aria-label="Dismiss">&times;</button>
 </div>
 
-<!-- NOTIFICATION PERMISSION BANNER -->
+<!-- ============================================================
+     NOTIFICATION PERMISSION BANNER
+     ============================================================ -->
 <div id="notifBanner" class="install-banner hidden">
   <span>Get notified about borrow requests and returns.</span>
   <button id="notifBannerBtn" class="btn btn-primary">Enable</button>

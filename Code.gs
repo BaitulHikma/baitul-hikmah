@@ -60,9 +60,9 @@ var RESET_CODE_MINUTES = 15;                // Forgot-password code validity
 // Get these from your Firebase project's service account JSON key.
 // See README.md "Notifications Setup" for exactly where to find each one.
 // Leave FIREBASE_PROJECT_ID as-is to leave notifications switched off.
-var FIREBASE_PROJECT_ID = 'PASTE_YOUR_FIREBASE_PROJECT_ID';
-var FIREBASE_CLIENT_EMAIL = 'PASTE_YOUR_SERVICE_ACCOUNT_EMAIL';
-var FIREBASE_PRIVATE_KEY = 'PASTE_YOUR_SERVICE_ACCOUNT_PRIVATE_KEY';
+var FIREBASE_PROJECT_ID = 'baitulhikmah-d7d0a';
+var FIREBASE_CLIENT_EMAIL = 'firebase-adminsdk-fbsvc@baitulhikmah-d7d0a.iam.gserviceaccount.com';
+var FIREBASE_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQDJ1nIN32OthLdU\nLhjH9cdMatsV6SSehkI2T3tm1VAIO5khbagD1K5hX+LuihTPgcuWzJCmbaQzfQTR\n43aVYKZWeqbKpssKLOW3zNaa6OkjbfhzKqC8gngmZc9+VuYNF1F652mai/YJm9CW\npy4yMNRpgVYIuy8L4cSXkp1PHnVfvmkVvzzyd24OhsVrOXxIHOC5Al7/VotxfeB+\nM27oV7JVc2t7T+UBBU6zA1vQZIq8zIWYbgC7RWdFohlK4aGo+OccmTdVsiO3fUl0\nNFNL4GY2rEFJ/mIQOUa8hyGUVkz+7/3P7gMIWz20TWxo/Zlj6wQnEQ1G8hJjMzKN\n1d+ek/lTAgMBAAECgf8+mymDNwntAZxzwnBfJClYSGSQLmvFHw9qrMsCgwIqNj9c\navL1DdP/yI7nW+1RecHSpe0u4dzwem6lfKZoNARH/jU5il0kpO52c3IK09UxOyQh\neH/LdIbZwQabfwOQ5gmPfjhf8KsxIGYX0CJeP722UYReOm8t/fYZWb+9m3wiNhS2\nfpzDqfpqsn+tRM9PTgVQ4Uh91g+DzrmOnUwbPNLBTimA6IBHwLCwOmZs+aLFQ7gb\nKqtE1cuwlzI3byQo090O6Cgg9ha4YbOI2AGXVdmWa7uK57vx73BwwqAuKxBjtKom\nEJ1XZbttRwamtDOlAkAwzxzDUs4zJ7ofZ/S2tQECgYEA8A9emZEWpPO8ycpP8iTy\njkg/yGjdH6NNEuBDUut8XwZnq3AOeek2E2GUCnsM6B3MJ5h7O3NeqNY06Z8rlthK\n2oBVEd3RpfC2gpKGX4uRu9Uxz/NHfxma5LTCruRzQDMdOTc7Ooxh+YyvBatc/lOg\ntdcHIlitLzlVf1zXxlA+mk0CgYEA1z1bpj9LDG0mE39GD2+xBH/EPSavwqx3bvLv\nBsxTjVy4jen0RN+WnEi+MlR9pVnzFjzailMNV3052jPynsCKocEvg1LW9Eu1Ldab\n2cCFATJG5zAe8xZ9gJR/VtGgO3nRwfYbi9TFU+KxPWsnpaRErFswdpREXkCt74yf\nhGHtch8CgYEA6qZbVchYVgxZcPVsh8hNv34nuoGmAxLgd572r8q22zurggwaWlf3\nH6K1zjjROOJHeDy32DjBQk9/kQyg0uXA5Suj+77S+lz8SU1oQ2RtoyiVdCrcrAQf\nP4bg9YsgjJRp8E9oeaZW7lLxkZ0bXQ3pfVUeCBid0Bc+1yutTo+JYdECgYBs3pdF\n7svKHEdfI0hPtIIIMYwUFkZepJfAodZvTNiSLy0Wcxjf4Wwv3sd9c6keAvJm9B7i\nSoH8F9Y0XYRB8kfs62dZ+IPLi6O37M5mBPABm+mrNHbjJCQU7oe+ZUez7blAb3id\ncODivk5CL7odGYq212UbBYHTXsnb2fgxoMrWpwKBgAtRa9JmwA4Ra1xjSVjDf+NP\nXdUyJ9KDGcyo+STWDNwpjDJEMfaLIXodgu4VMQF7zAYyIOIFT1g8emUiLq+jBgqL\nfut5GbsqhCMLaAvRZwAHAb3m8VJU86UUcshbFv2eX70MEBZs/rmqrve+un3Pl862\nx7uI/E29XSIysPjpN9uN\n-----END PRIVATE KEY-----\n";
 
 // ---- ENTRY POINT ------------------------------------------------------------
 function doPost(e) {
@@ -88,8 +88,18 @@ function doPost(e) {
       case 'requestReturn':     result = handleRequestReturn_(body); break;
       case 'confirmReturn':     result = handleConfirmReturn_(body); break;
       case 'listMembers':       result = handleListMembers_(body); break;
+      case 'editProfile':       result = handleEditProfile_(body); break;
+      case 'sendSalam':         result = handleSendSalam_(body); break;
+      case 'listNotifications': result = handleListNotifications_(body); break;
+      case 'getLiveUpdates':    result = handleGetLiveUpdates_(body); break;
+      case 'markNotificationsRead': result = handleMarkNotificationsRead_(body); break;
       case 'getInbox':          result = handleGetInbox_(body); break;
       case 'savePushToken':     result = handleSavePushToken_(body); break;
+      case 'testNotification':  result = handleTestNotification_(body); break;
+      case 'setModerator':      result = handleSetModerator_(body); break;
+      case 'setHidden':         result = handleSetHidden_(body); break;
+      case 'getStaffPanel':     result = handleGetStaffPanel_(body); break;
+      case 'confirmWhatsappAccess': result = handleConfirmWhatsappAccess_(body); break;
       default:
         result = { ok: false, error: 'Unknown action: ' + action };
     }
@@ -121,12 +131,77 @@ function getSS_() {
   }
   ensureSheet_(ss, 'Users', ['ID', 'DisplayName', 'DPFileId', 'WhatsApp', 'Email',
     'PassHash', 'PassSalt', 'Reference', 'SessionToken', 'ResetCode', 'ResetExpiry', 'CreatedAt']);
+  ensureColumn_(ss.getSheetByName('Users'), 'Bio');
+  ensureColumn_(ss.getSheetByName('Users'), 'Role');       // '' | 'moderator'
+  ensureColumn_(ss.getSheetByName('Users'), 'Hidden');     // '' | 'true' — admin/mod can hide an account
   ensureSheet_(ss, 'Books', ['BookID', 'OwnerID', 'BookName', 'Writer', 'Publisher',
-    'ImageFileId', 'Status', 'CreatedAt']);
+    'ImageFileId', 'Status', 'CreatedAt', 'PageCount']);
+  ensureColumn_(ss.getSheetByName('Books'), 'PageCount'); // migrates sheets created before this column existed
+  ensureColumn_(ss.getSheetByName('Books'), 'Hidden');    // '' | 'true' — admin/mod can hide a book
   ensureSheet_(ss, 'Requests', ['RequestID', 'BookID', 'RequesterID', 'OwnerID', 'Status',
     'DurationDays', 'RequestDate', 'ApprovedDate', 'DueDate', 'ReturnRequestedDate']);
   ensureSheet_(ss, 'PushTokens', ['UserID', 'Token', 'CreatedAt']);
+  ensureSheet_(ss, 'Salams', ['SenderID', 'TargetID', 'SentAt']);
+  ensureSheet_(ss, 'LiveUpdates', ['Text', 'ImageFileId', 'CreatedAt']);
+  ensureSheet_(ss, 'WhatsappAccessLog', ['UserID', 'UserName', 'OwnerID', 'OwnerName',
+    'BookID', 'BookName', 'DurationDays', 'AccessedAt']);
+  ensureSettingsSheet_(ss);
+  ensureDailyHadithSheet_(ss);
+  ensureSheet_(ss, 'Notifications', ['notifId', 'userId', 'title', 'body', 'read', 'timestamp']);
   return ss;
+}
+
+// A simple two-column Key | Value sheet — this IS the "place you can edit
+// anytime" for the signup greeting text. Editing the Value cell for
+// GreetingText takes effect immediately, no redeploy needed.
+function ensureSettingsSheet_(ss) {
+  var sheet = ss.getSheetByName('Settings');
+  if (!sheet) {
+    sheet = ss.insertSheet('Settings');
+    sheet.appendRow(['Key', 'Value']);
+    sheet.appendRow(['GreetingText',
+      'Welcome to Baitul Hikmah! We are so glad to have you here. Borrow ' +
+      'and share books with your community, take good care of what you ' +
+      'borrow, and return it on time so others can enjoy it too. Jazak Allahu khairan!']);
+    sheet.setFrozenRows(1);
+  }
+}
+
+// 365 rows, one per day of the year. Pre-filled with a placeholder so
+// nothing ever shows blank before real hadiths are pasted in — safe to
+// overwrite any row's Text cell in the sheet at any time.
+function ensureDailyHadithSheet_(ss) {
+  var sheet = ss.getSheetByName('DailyHadith');
+  if (!sheet) {
+    sheet = ss.insertSheet('DailyHadith');
+    sheet.appendRow(['DayOfYear', 'Text']);
+    var rows = [];
+    for (var d = 1; d <= 365; d++) {
+      rows.push([d, 'Hadith for day ' + d + ' — to be added.']);
+    }
+    sheet.getRange(2, 1, rows.length, 2).setValues(rows);
+    sheet.setFrozenRows(1);
+  }
+}
+
+function getSettingValue_(ss, key) {
+  var rows = sheetToObjects_(ss.getSheetByName('Settings'));
+  var row = rows.filter(function (r) { return r.Key === key; })[0];
+  return row ? row.Value : '';
+}
+
+// Bangladesh date, so "today" lines up with the 6:30am BD hadith the spec
+// wants, not the server's default timezone.
+function computeTodayHadith_(ss) {
+  var now = new Date();
+  var bdDateStr = Utilities.formatDate(now, 'Asia/Dhaka', 'yyyy-MM-dd');
+  var bdDate = new Date(bdDateStr + 'T00:00:00');
+  var startOfYear = new Date(bdDate.getFullYear(), 0, 1);
+  var dayOfYear = Math.floor((bdDate - startOfYear) / 86400000) + 1;
+  var row = ((dayOfYear - 1) % 365) + 1; // wraps safely even on a 366-day leap year
+  var rows = sheetToObjects_(ss.getSheetByName('DailyHadith'));
+  var match = rows.filter(function (r) { return Number(r.DayOfYear) === row; })[0];
+  return match ? match.Text : '';
 }
 
 function ensureSheet_(ss, name, headers) {
@@ -153,6 +228,18 @@ function ensureSheet_(ss, name, headers) {
     ss.deleteSheet(def);
   }
   return sheet;
+}
+
+// Adds a new column to an already-existing sheet if it isn't there yet —
+// needed because ensureSheet_ above only sets headers on a BRAND NEW sheet;
+// it won't retroactively add columns to a sheet that already has rows in it.
+// Safe to call every request: it's a no-op once the column exists.
+function ensureColumn_(sheet, columnName) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf(columnName) === -1) {
+    sheet.getRange(1, lastCol + 1).setValue(columnName);
+  }
 }
 
 function sheetToObjects_(sheet) {
@@ -206,6 +293,18 @@ function makeToken_() {
 
 function isAdmin_(email) {
   return String(email).toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
+// Admin = the fixed owner account. Moderator = any account the admin has
+// promoted (Role = 'moderator' on the Users sheet). "Staff" = either one —
+// used for anything both are allowed to see/do, like the confidential
+// WhatsApp access log. Moderators can do everything admin can EXCEPT
+// promote/demote other moderators — that stays admin-only.
+function isModerator_(userRow) {
+  return userRow && String(userRow.Role || '').toLowerCase() === 'moderator';
+}
+function isStaff_(userRow) {
+  return isAdmin_(userRow.Email) || isModerator_(userRow);
 }
 
 // Verifies a userId + sessionToken pair sent by the frontend on every
@@ -308,10 +407,12 @@ function handleSignup_(body) {
   users.appendRow([id, displayName, dpFileId, whatsapp, email, hash, salt,
     body.reference || '', token, '', '', new Date()]);
 
+  logLiveUpdate_(ss, displayName + ' just joined Baitul Hikmah!');
+
   return { ok: true, user: publicUser_({
     ID: id, DisplayName: displayName, DPFileId: dpFileId, WhatsApp: whatsapp,
     Email: email, SessionToken: token
-  }) };
+  }), greetingText: getSettingValue_(ss, 'GreetingText') };
 }
 
 function handleLogin_(body) {
@@ -346,9 +447,26 @@ function publicUser_(u) {
     dpFileId: u.DPFileId,
     whatsapp: String(u.WhatsApp || ''),
     email: u.Email,
+    bio: u.Bio || '',
     token: u.SessionToken,
-    isAdmin: isAdmin_(u.Email)
+    isAdmin: isAdmin_(u.Email),
+    isModerator: isModerator_(u),
+    isStaff: isStaff_(u)
   };
+}
+
+// Level is DERIVED, never stored — this guarantees it can never drift out of
+// sync with the actual data it's based on. Starts at -1 per spec.
+// +1 per successful borrow-and-return (Requests row reaches 'returned').
+// +1 per every 3 books the user has added to the library.
+function computeUserLevel_(userId, ss) {
+  var requests = sheetToObjects_(ss.getSheetByName('Requests'));
+  var books = sheetToObjects_(ss.getSheetByName('Books'));
+  var successfulReturns = requests.filter(function (r) {
+    return String(r.RequesterID) === String(userId) && r.Status === 'returned';
+  }).length;
+  var booksOwned = books.filter(function (b) { return String(b.OwnerID) === String(userId); }).length;
+  return -1 + successfulReturns + Math.floor(booksOwned / 3);
 }
 
 function handleForgotPasswordRequest_(body) {
@@ -422,6 +540,7 @@ function handleGetProfile_(body) {
     .map(function (r) { return enrichRequest_(r, books, ss); });
 
   var borrowedList = borrowed.map(function (r) { return enrichRequest_(r, books, ss); });
+  var lentOutListEnriched = lentOut.map(function (r) { return enrichRequest_(r, books, ss); });
 
   // Books the CURRENT user lent out that the borrower has asked to return —
   // this is the "please confirm the book came back" queue.
@@ -431,22 +550,33 @@ function handleGetProfile_(body) {
 
   var notificationCount = incomingRequests.length + returnRequests.length;
 
+  var totalSuccessfulBorrows = requests.filter(function (r) {
+    return r.Status === 'approved' || r.Status === 'return_pending' || r.Status === 'returned';
+  }).length;
+  var totalSuccessfulReturns = requests.filter(function (r) { return r.Status === 'returned'; }).length;
+
   // Everything the Profile page needs is bundled into this ONE response —
   // deliberately avoiding extra round trips to Apps Script, which is the
   // slowest part of this whole stack.
   return {
     ok: true,
     profile: {
-      id: user.ID, displayName: user.DisplayName, dpFileId: user.DPFileId,
+      id: user.ID, displayName: user.DisplayName, dpFileId: user.DPFileId, bio: user.Bio || '',
       whatsapp: String(user.WhatsApp || ''), email: user.Email, isAdmin: isAdmin_(user.Email),
-      myBooksCount: myBooks.length, borrowedCount: borrowed.length, lentOutCount: lentOut.length
+      isModerator: isModerator_(user), isStaff: isStaff_(user),
+      myBooksCount: myBooks.length, borrowedCount: borrowed.length, lentOutCount: lentOut.length,
+      level: computeUserLevel_(user.ID, ss)
     },
     totalBooksCount: books.length,
     totalMembersCount: users.length,
+    totalSuccessfulBorrows: totalSuccessfulBorrows,
+    totalSuccessfulReturns: totalSuccessfulReturns,
+    todayHadith: computeTodayHadith_(ss),
     notificationCount: notificationCount,
     incomingRequests: incomingRequests,
     outgoingRequests: outgoingRequests,
     borrowedBooks: borrowedList,
+    lentOutBooks: lentOutListEnriched,
     returnRequests: returnRequests
   };
 }
@@ -466,16 +596,21 @@ function enrichRequest_(r, books, ss) {
     ownerId: r.OwnerID, ownerName: owner.DisplayName, ownerDp: owner.DPFileId, ownerWhatsapp: owner.WhatsApp,
     requesterId: r.RequesterID, requesterName: requester.DisplayName, requesterDp: requester.DPFileId,
     status: r.Status, durationDays: r.DurationDays,
-    requestDate: r.RequestDate, dueDate: r.DueDate, daysLeft: daysLeft
+    requestDate: r.RequestDate, approvedDate: r.ApprovedDate, dueDate: r.DueDate,
+    returnRequestedDate: r.ReturnRequestedDate, daysLeft: daysLeft
   };
 }
 
 function handleListBooks_(body) {
-  requireAuth_(body);
+  var me = requireAuth_(body);
   var ss = getSS_();
   var books = sheetToObjects_(ss.getSheetByName('Books'));
   var requests = sheetToObjects_(ss.getSheetByName('Requests'));
   var users = sheetToObjects_(ss.getSheetByName('Users'));
+
+  if (!isStaff_(me)) {
+    books = books.filter(function (b) { return b.Hidden !== 'true' || String(b.OwnerID) === String(me.ID); });
+  }
 
   var userMap = {};
   users.forEach(function (u) { userMap[u.ID] = u; });
@@ -488,13 +623,17 @@ function handleListBooks_(body) {
       return String(r.BookID) === String(b.BookID) && String(r.RequesterID) === String(body.userId) && r.Status === 'pending';
     })[0];
     var owner = userMap[b.OwnerID] || {};
+    var borrower = activeReq ? userMap[activeReq.RequesterID] : null;
     return {
       bookId: b.BookID, bookName: b.BookName, writer: b.Writer, publisher: b.Publisher,
+      pageCount: b.PageCount || null,
       imageFileId: b.ImageFileId, status: b.Status,
       ownerId: b.OwnerID, ownerName: owner.DisplayName, ownerWhatsapp: String(owner.WhatsApp || ''),
       dueDate: activeReq ? activeReq.DueDate : null,
+      borrowerName: borrower ? borrower.DisplayName : null,
       myPendingRequestId: myReq ? myReq.RequestID : null,
-      isMine: String(b.OwnerID) === String(body.userId)
+      isMine: String(b.OwnerID) === String(body.userId),
+      hidden: b.Hidden === 'true'
     };
   });
 
@@ -506,6 +645,7 @@ function handleAddBooks_(body) {
   var ss = getSS_();
   var books = ss.getSheetByName('Books');
   var added = [];
+  var levelBefore = computeUserLevel_(user.ID, ss);
 
   // body.files = [{ base64: "data:image/...", bookName, writer, publisher }, ...]
   // The owner is always the logged-in user — no filename parsing needed.
@@ -517,11 +657,18 @@ function handleAddBooks_(body) {
     var bookName = String(f.bookName || '').trim();
     var writer = String(f.writer || '').trim();
     var publisher = String(f.publisher || '').trim();
-    books.appendRow([bookId, user.ID, bookName, writer, publisher, fileId, 'available', new Date()]);
-    added.push({ bookId: bookId, bookName: bookName, writer: writer, publisher: publisher, imageFileId: fileId });
+    var pageCount = f.pageCount ? parseInt(f.pageCount, 10) : '';
+    books.appendRow([bookId, user.ID, bookName, writer, publisher, fileId, 'available', new Date(), pageCount]);
+    added.push({ bookId: bookId, bookName: bookName, writer: writer, publisher: publisher, imageFileId: fileId, pageCount: pageCount });
+    logLiveUpdate_(ss, user.DisplayName + ' added "' + (bookName || 'a book') + '" to the Library!', fileId);
+    logNotification_(ss, user.ID, 'Book added', 'You added "' + (bookName || 'a book') + '" to the library.');
   });
 
-  return { ok: true, added: added };
+  var levelAfter = computeUserLevel_(user.ID, ss);
+  var leveledUp = levelAfter > levelBefore;
+  if (leveledUp) logNotification_(ss, user.ID, 'Level up! \ud83c\udf89', 'Congratulations — you just reached Level ' + levelAfter + '!');
+
+  return { ok: true, added: added, leveledUp: leveledUp, newLevel: levelAfter };
 }
 
 function handleEditBook_(body) {
@@ -536,8 +683,10 @@ function handleEditBook_(body) {
   updateRowFields_(books, book._row, {
     BookName: String(body.bookName || '').trim(),
     Writer: String(body.writer || '').trim(),
-    Publisher: String(body.publisher || '').trim()
+    Publisher: String(body.publisher || '').trim(),
+    PageCount: body.pageCount ? parseInt(body.pageCount, 10) : ''
   });
+  logNotification_(ss, user.ID, 'Book updated', 'You updated the details for "' + String(body.bookName || book.BookName || 'a book') + '".');
   return { ok: true };
 }
 
@@ -550,6 +699,15 @@ function handleDeleteBook_(body) {
   if (String(book.OwnerID) !== String(user.ID) && !isAdmin_(user.Email)) {
     return { ok: false, error: 'You can only delete your own books.' };
   }
+
+  var affected = sheetToObjects_(ss.getSheetByName('Requests')).filter(function (r) {
+    return String(r.BookID) === String(book.BookID) && (r.Status === 'pending' || r.Status === 'approved' || r.Status === 'return_pending');
+  });
+  affected.forEach(function (r) {
+    logNotification_(ss, r.RequesterID, 'Book removed', '"' + book.BookName + '" was removed from the library by its owner.');
+  });
+
+  logNotification_(ss, user.ID, 'Book removed', 'You removed "' + book.BookName + '" from the library.');
   books.deleteRow(book._row);
   return { ok: true };
 }
@@ -574,9 +732,10 @@ function handleRequestBorrow_(body) {
   requests.appendRow([reqId, body.bookId, user.ID, book.OwnerID, 'pending',
     body.durationDays || 7, new Date(), '', '', '']);
 
-  sendPushToUser_(book.OwnerID, 'New borrow request', user.DisplayName + ' would like to borrow "' + book.BookName + '".');
+  logNotification_(ss, book.OwnerID, 'New borrow request', user.DisplayName + ' would like to borrow "' + book.BookName + '".');
+  logNotification_(ss, user.ID, 'Request sent', 'Your request for "' + book.BookName + '" was sent.');
 
-  return { ok: true };
+  return { ok: true, requestId: reqId };
 }
 
 function handleCancelMyRequest_(body) {
@@ -587,6 +746,11 @@ function handleCancelMyRequest_(body) {
   if (!req) return { ok: false, error: 'Request not found.' };
   if (String(req.RequesterID) !== String(user.ID)) return { ok: false, error: 'Not your request.' };
   updateRowFields_(requests, req._row, { Status: 'cancelled' });
+
+  var book = findRowById_(ss.getSheetByName('Books'), 'BookID', req.BookID);
+  logNotification_(ss, req.OwnerID, 'Request withdrawn', user.DisplayName + ' withdrew their request for "' + (book ? book.BookName : 'a book') + '".');
+  logNotification_(ss, user.ID, 'You withdrew a request', 'You withdrew your request for "' + (book ? book.BookName : 'a book') + '".');
+
   return { ok: true };
 }
 
@@ -616,7 +780,15 @@ function handleApproveRequest_(body) {
     }
   });
 
-  sendPushToUser_(req.RequesterID, 'Request approved', '"' + book.BookName + '" is ready — go pick it up!');
+  logNotification_(ss, req.RequesterID, 'Request approved', '"' + book.BookName + '" is ready — go pick it up!');
+  logNotification_(ss, user.ID, 'You approved a request', 'You approved ' + (function () {
+    var r = findRowById_(ss.getSheetByName('Users'), 'ID', req.RequesterID);
+    return r ? r.DisplayName : 'a member';
+  })() + '\u2019s request for "' + book.BookName + '".');
+
+  var borrowerRow = findRowById_(ss.getSheetByName('Users'), 'ID', req.RequesterID);
+  var borrowerName = borrowerRow ? borrowerRow.DisplayName : 'Someone';
+  logLiveUpdate_(ss, borrowerName + ' borrowed "' + book.BookName + '" from ' + user.DisplayName, book.ImageFileId);
 
   return { ok: true };
 }
@@ -629,6 +801,11 @@ function handleRejectRequest_(body) {
   if (!req) return { ok: false, error: 'Request not found.' };
   if (String(req.OwnerID) !== String(user.ID)) return { ok: false, error: 'Not your book.' };
   updateRowFields_(requests, req._row, { Status: 'cancelled' });
+
+  var book = findRowById_(ss.getSheetByName('Books'), 'BookID', req.BookID);
+  logNotification_(ss, req.RequesterID, 'Request declined', 'Your request for "' + (book ? book.BookName : 'a book') + '" was declined.');
+  logNotification_(ss, user.ID, 'You declined a request', 'You declined the request for "' + (book ? book.BookName : 'a book') + '".');
+
   return { ok: true };
 }
 
@@ -642,7 +819,8 @@ function handleRequestReturn_(body) {
   updateRowFields_(requests, req._row, { Status: 'return_pending', ReturnRequestedDate: new Date() });
 
   var book = findRowById_(ss.getSheetByName('Books'), 'BookID', req.BookID);
-  sendPushToUser_(req.OwnerID, 'Return requested', user.DisplayName + ' says they\u2019re returning "' + (book ? book.BookName : 'a book') + '".');
+  logNotification_(ss, req.OwnerID, 'Return requested', user.DisplayName + ' says they\u2019re returning "' + (book ? book.BookName : 'a book') + '".');
+  logNotification_(ss, user.ID, 'Return request sent', 'The owner has been notified you\u2019re returning "' + (book ? book.BookName : 'a book') + '".');
 
   return { ok: true };
 }
@@ -656,21 +834,38 @@ function handleConfirmReturn_(body) {
   if (!req) return { ok: false, error: 'Request not found.' };
   if (String(req.OwnerID) !== String(user.ID)) return { ok: false, error: 'Not your book.' };
 
+  var levelBefore = computeUserLevel_(req.RequesterID, ss);
+
   updateRowFields_(requests, req._row, { Status: 'returned' });
   var book = findRowById_(books, 'BookID', req.BookID);
   if (book) updateRowFields_(books, book._row, { Status: 'available' });
 
-  sendPushToUser_(req.RequesterID, 'Return confirmed', 'Thanks! The owner confirmed "' + (book ? book.BookName : 'the book') + '" was returned.');
+  logNotification_(ss, req.RequesterID, 'Return confirmed', 'Thanks! The owner confirmed "' + (book ? book.BookName : 'the book') + '" was returned.');
+  logNotification_(ss, user.ID, 'You confirmed a return', 'You confirmed "' + (book ? book.BookName : 'a book') + '" was returned.');
 
-  return { ok: true };
+  var borrowerRow = findRowById_(ss.getSheetByName('Users'), 'ID', req.RequesterID);
+  var borrowerName = borrowerRow ? borrowerRow.DisplayName : 'Someone';
+  logLiveUpdate_(ss, borrowerName + ' returned "' + (book ? book.BookName : 'a book') + '" to ' + user.DisplayName, book ? book.ImageFileId : null);
+
+  var levelAfter = computeUserLevel_(req.RequesterID, ss);
+  var leveledUp = levelAfter > levelBefore;
+  if (leveledUp) logNotification_(ss, req.RequesterID, 'Level up! \ud83c\udf89', 'Congratulations — you just reached Level ' + levelAfter + '!');
+
+  return { ok: true, leveledUp: leveledUp, newLevel: levelAfter, forUserId: req.RequesterID };
 }
 
 function handleListMembers_(body) {
-  requireAuth_(body);
+  var me = requireAuth_(body);
   var ss = getSS_();
   var users = sheetToObjects_(ss.getSheetByName('Users'));
   var books = sheetToObjects_(ss.getSheetByName('Books'));
   var requests = sheetToObjects_(ss.getSheetByName('Requests'));
+  var salams = sheetToObjects_(ss.getSheetByName('Salams'));
+  var SALAM_COOLDOWN_MS = 30 * 60 * 1000;
+
+  if (!isStaff_(me)) {
+    users = users.filter(function (u) { return u.Hidden !== 'true' || String(u.ID) === String(me.ID); });
+  }
 
   var list = users.map(function (u) {
     var owned = books.filter(function (b) { return String(b.OwnerID) === String(u.ID); }).length;
@@ -680,13 +875,98 @@ function handleListMembers_(body) {
     var borrowed = requests.filter(function (r) {
       return String(r.RequesterID) === String(u.ID) && (r.Status === 'approved' || r.Status === 'return_pending');
     }).length;
+    var totalRequestsSent = requests.filter(function (r) { return String(r.RequesterID) === String(u.ID); }).length;
+    var successfulReturns = requests.filter(function (r) {
+      return String(r.RequesterID) === String(u.ID) && r.Status === 'returned';
+    }).length;
+
+    var mySalam = salams.filter(function (s) {
+      return String(s.SenderID) === String(me.ID) && String(s.TargetID) === String(u.ID);
+    }).sort(function (a, b) { return new Date(b.SentAt) - new Date(a.SentAt); })[0];
+    var salamCooldownUntil = null;
+    if (mySalam) {
+      var until = new Date(mySalam.SentAt).getTime() + SALAM_COOLDOWN_MS;
+      if (until > Date.now()) salamCooldownUntil = new Date(until).toISOString();
+    }
+
     return {
-      id: u.ID, displayName: u.DisplayName, dpFileId: u.DPFileId,
-      ownedBooks: owned, lentOut: lent, borrowed: borrowed
+      id: u.ID, displayName: u.DisplayName, dpFileId: u.DPFileId, bio: u.Bio || '',
+      ownedBooks: owned, lentOut: lent, borrowed: borrowed,
+      totalRequestsSent: totalRequestsSent, successfulReturns: successfulReturns,
+      level: computeUserLevel_(u.ID, ss),
+      salamCooldownUntil: salamCooldownUntil
     };
   });
 
-  return { ok: true, members: list };
+  var topOwner = list.slice().sort(function (a, b) { return b.ownedBooks - a.ownedBooks; })[0];
+  var topBorrower = list.slice().sort(function (a, b) { return b.successfulReturns - a.successfulReturns; })[0];
+  var topRequester = list.slice().sort(function (a, b) { return b.totalRequestsSent - a.totalRequestsSent; })[0];
+
+  return {
+    ok: true, members: list,
+    leaderboard: {
+      topOwner: (topOwner && topOwner.ownedBooks > 0) ? { name: topOwner.displayName, count: topOwner.ownedBooks } : null,
+      topBorrower: (topBorrower && topBorrower.successfulReturns > 0) ? { name: topBorrower.displayName, count: topBorrower.successfulReturns } : null,
+      topRequester: (topRequester && topRequester.totalRequestsSent > 0) ? { name: topRequester.displayName, count: topRequester.totalRequestsSent } : null
+    }
+  };
+}
+
+function handleEditProfile_(body) {
+  var user = requireAuth_(body);
+  var ss = getSS_();
+  var users = ss.getSheetByName('Users');
+  var row = findRowById_(users, 'ID', user.ID);
+  if (!row) return { ok: false, error: 'Account not found.' };
+
+  var displayName = String(body.displayName || '').trim();
+  if (!displayName) return { ok: false, error: 'Name cannot be empty.' };
+  var bio = String(body.bio || '').trim().slice(0, 300);
+
+  var fields = { DisplayName: displayName, Bio: bio };
+
+  if (body.dpBase64) {
+    var newFileId = saveBase64Image_(body.dpBase64, DP_IMAGES_FOLDER, 'dp_' + user.ID + '_' + new Date().getTime());
+    if (row.DPFileId) {
+      try { DriveApp.getFileById(row.DPFileId).setTrashed(true); } catch (e) { /* old file already gone — fine */ }
+    }
+    fields.DPFileId = newFileId;
+  }
+
+  updateRowFields_(users, row._row, fields);
+
+  return {
+    ok: true,
+    user: publicUser_({
+      ID: user.ID, DisplayName: fields.DisplayName, DPFileId: fields.DPFileId || row.DPFileId,
+      WhatsApp: row.WhatsApp, Email: row.Email, Bio: fields.Bio, SessionToken: row.SessionToken
+    })
+  };
+}
+
+function handleSendSalam_(body) {
+  var me = requireAuth_(body);
+  var ss = getSS_();
+  var salamsSheet = ss.getSheetByName('Salams');
+  var salams = sheetToObjects_(salamsSheet);
+  var targetId = String(body.targetId || '');
+  if (!targetId) return { ok: false, error: 'No member specified.' };
+  if (targetId === String(me.ID)) return { ok: false, error: "You can't send Salam to yourself!" };
+
+  var SALAM_COOLDOWN_MS = 30 * 60 * 1000;
+  var last = salams.filter(function (s) {
+    return String(s.SenderID) === String(me.ID) && String(s.TargetID) === targetId;
+  }).sort(function (a, b) { return new Date(b.SentAt) - new Date(a.SentAt); })[0];
+  if (last && (Date.now() - new Date(last.SentAt).getTime()) < SALAM_COOLDOWN_MS) {
+    return { ok: false, error: 'Please wait before sending Salam to this member again.' };
+  }
+
+  salamsSheet.appendRow([me.ID, targetId, new Date()]);
+  logNotification_(ss, targetId, 'Salam! \ud83d\udc4b', me.DisplayName + ' sent you Salam!');
+  var targetRow = findRowById_(ss.getSheetByName('Users'), 'ID', targetId);
+  logNotification_(ss, me.ID, 'Salam sent', 'You sent Salam to ' + (targetRow ? targetRow.DisplayName : 'a member') + '.');
+
+  return { ok: true, cooldownUntil: new Date(Date.now() + SALAM_COOLDOWN_MS).toISOString() };
 }
 
 function handleGetInbox_(body) {
@@ -769,28 +1049,125 @@ function getFCMAccessToken_() {
   return data.access_token;
 }
 
+// #15 — public activity feed. Deliberately reads/logs its own small entries
+// rather than depending on the (skipped, per your request) 3-month backup
+// sheet — simpler and lower-risk, same visible result.
+function logLiveUpdate_(ss, text, imageFileId) {
+  try {
+    ss.getSheetByName('LiveUpdates').appendRow([text, imageFileId || '', new Date()]);
+  } catch (e) {
+    Logger.log('logLiveUpdate_: failed: ' + e);
+  }
+}
+
+function handleGetLiveUpdates_(body) {
+  requireAuth_(body);
+  var ss = getSS_();
+  var all = sheetToObjects_(ss.getSheetByName('LiveUpdates'))
+    .sort(function (a, b) { return new Date(b.CreatedAt) - new Date(a.CreatedAt); })
+    .slice(0, 4);
+  return {
+    ok: true,
+    updates: all.map(function (u) { return { text: u.Text, imageFileId: u.ImageFileId || null, createdAt: u.CreatedAt }; })
+  };
+}
+
+// #3 / #25 / #27 — every notification-worthy event goes through THIS, not
+// sendPushToUser_ directly, so it's both pushed to the device AND recorded
+// in the in-app notification bulletin (the little red-dot bell icon). The
+// two are deliberately coupled — the bulletin is the "reasons" history the
+// spec asks for, and it should never fall out of sync with what was pushed.
+function logNotification_(ss, userId, title, body) {
+  try {
+    var sheet = ss.getSheetByName('Notifications');
+    sheet.appendRow(['N' + new Date().getTime() + Math.floor(Math.random() * 1000), userId, title, body, false, new Date()]);
+  } catch (e) {
+    Logger.log('logNotification_: failed to write log row: ' + e);
+  }
+  sendPushToUser_(userId, title, body);
+}
+
+function handleListNotifications_(body) {
+  var user = requireAuth_(body);
+  var ss = getSS_();
+  var all = sheetToObjects_(ss.getSheetByName('Notifications'))
+    .filter(function (n) { return String(n.userId) === String(user.ID); })
+    .sort(function (a, b) { return new Date(b.timestamp) - new Date(a.timestamp); })
+    .slice(0, 100); // most recent 100 is plenty for a bulletin list
+  var unreadCount = all.filter(function (n) { return n.read !== true && n.read !== 'TRUE' && n.read !== 'true'; }).length;
+  return {
+    ok: true,
+    unreadCount: unreadCount,
+    notifications: all.map(function (n) {
+      return { id: n.notifId, title: n.title, body: n.body, createdAt: n.timestamp, read: !!(n.read === true || n.read === 'TRUE' || n.read === 'true') };
+    })
+  };
+}
+
+function handleMarkNotificationsRead_(body) {
+  var user = requireAuth_(body);
+  var ss = getSS_();
+  var sheet = ss.getSheetByName('Notifications');
+  var rows = sheetToObjects_(sheet);
+  rows.forEach(function (n) {
+    if (String(n.userId) === String(user.ID) && !(n.read === true || n.read === 'TRUE' || n.read === 'true')) {
+      updateRowFields_(sheet, n._row, { read: true });
+    }
+  });
+  return { ok: true };
+}
+
+// #22 — call this from a Google Apps Script time-driven trigger set to run
+// daily at 6:30am (Asia/Dhaka). See setup guide for how to attach the
+// trigger — it's a one-time, 30-second manual step in the Apps Script UI,
+// not something that can be done from a deployment alone.
+function sendDailyHadithNotifications_() {
+  var ss = getSS_();
+  var hadith = computeTodayHadith_(ss);
+  if (!hadith) return;
+  var users = sheetToObjects_(ss.getSheetByName('Users'));
+  users.forEach(function (u) {
+    logNotification_(ss, u.ID, "Today's Hadith", hadith);
+  });
+}
+
+// Trigger dropdowns in Apps Script sometimes cache a stale function list —
+// this small wrapper exists purely so there's a function name your browser
+// has never seen before, guaranteeing it shows up fresh. Point your 6:30am
+// trigger at THIS function, not the one above.
+function dailyHadithTrigger() {
+  sendDailyHadithNotifications_();
+}
+
 // Sends a push notification to every device a user has enabled notifications
 // on. Silently does nothing if Firebase isn't configured, or the user has
 // none — a notification failure should never break the actual borrow/return
 // action it's attached to.
 function sendPushToUser_(userId, title, body) {
-  if (!pushNotificationsConfigured_()) return;
+  if (!pushNotificationsConfigured_()) { Logger.log('sendPushToUser_: Firebase not configured, skipping.'); return; }
   try {
     var ss = getSS_();
-    var tokens = sheetToObjects_(ss.getSheetByName('PushTokens'))
+    var tokensSheet = ss.getSheetByName('PushTokens');
+    var tokens = sheetToObjects_(tokensSheet)
       .filter(function (t) { return String(t.UserID) === String(userId); });
-    if (!tokens.length) return;
+    if (!tokens.length) { Logger.log('sendPushToUser_: no PushTokens row for userId=' + userId + '. The device never saved a token.'); return; }
 
     var accessToken = getFCMAccessToken_();
     tokens.forEach(function (t) {
+      // Sent as data-only (no top-level "notification" key) so there is
+      // exactly ONE place that decides how it looks — sw.js's
+      // onBackgroundMessage — instead of the browser and our own code both
+      // trying to show it (which can cause duplicates). "Urgency: high"
+      // asks the browser to wake the device immediately rather than batch
+      // it for later, which is what makes this feel instant/"bold".
       var payload = {
         message: {
           token: t.Token,
-          notification: { title: title, body: body },
-          webpush: { fcm_options: { link: '/' } }
+          data: { title: title, body: body },
+          webpush: { headers: { Urgency: 'high' } }
         }
       };
-      UrlFetchApp.fetch(
+      var res = UrlFetchApp.fetch(
         'https://fcm.googleapis.com/v1/projects/' + FIREBASE_PROJECT_ID + '/messages:send',
         {
           method: 'post',
@@ -800,8 +1177,196 @@ function sendPushToUser_(userId, title, body) {
           muteHttpExceptions: true
         }
       );
+      var code = res.getResponseCode();
+      if (code !== 200) {
+        Logger.log('sendPushToUser_: FCM send FAILED (HTTP ' + code + ') for userId=' + userId + ': ' + res.getContentText());
+        // UNREGISTERED / NOT_FOUND means the token is dead (uninstalled, permission
+        // revoked, etc.) — delete it so we stop trying and the sheet stays clean.
+        if (code === 404 || (res.getContentText() || '').indexOf('UNREGISTERED') !== -1) {
+          tokensSheet.deleteRow(t._row);
+        }
+      } else {
+        Logger.log('sendPushToUser_: sent OK to userId=' + userId);
+      }
     });
   } catch (err) {
-    // Never let a notification problem break the underlying action.
+    Logger.log('sendPushToUser_: EXCEPTION: ' + err + (err.stack ? ('\n' + err.stack) : ''));
   }
 }
+
+// ---------------------------------------------------------------------------
+// DEBUG HELPER — call this from the browser console (see notes below) to
+// send yourself a real push notification right now and get the exact error
+// back in the response instead of it being swallowed. Remove once
+// everything's confirmed working, or just leave it — it's harmless.
+// ---------------------------------------------------------------------------
+function handleTestNotification_(body) {
+  var user = requireAuth_(body);
+  if (!pushNotificationsConfigured_()) {
+    return { ok: false, error: 'FIREBASE_PROJECT_ID is not set in Code.gs.' };
+  }
+  var ss = getSS_();
+  var tokens = sheetToObjects_(ss.getSheetByName('PushTokens'))
+    .filter(function (t) { return String(t.UserID) === String(user.ID); });
+  if (!tokens.length) {
+    return { ok: false, error: 'No PushTokens row exists for your account yet. This means the FRONTEND never successfully got a token and called savePushToken — the problem is on the browser/permission side, not the backend. Check the browser console for errors when you tap "Enable notifications".' };
+  }
+  try {
+    var accessToken = getFCMAccessToken_();
+  } catch (err) {
+    return { ok: false, error: 'Could not get an FCM access token from your service account key: ' + err + '. Double-check FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY in Code.gs exactly match your service account JSON, including all the \\n characters in the private key.' };
+  }
+  var results = [];
+  tokens.forEach(function (t) {
+    var payload = {
+      message: {
+        token: t.Token,
+        data: { title: 'Test notification', body: 'If you see this, push is fully working \ud83c\udf89' },
+        webpush: { headers: { Urgency: 'high' } }
+      }
+    };
+    var res = UrlFetchApp.fetch(
+      'https://fcm.googleapis.com/v1/projects/' + FIREBASE_PROJECT_ID + '/messages:send',
+      {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + accessToken },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      }
+    );
+    results.push({ token: t.Token.slice(0, 12) + '...', httpCode: res.getResponseCode(), response: res.getContentText() });
+  });
+  return { ok: true, results: results };
+}
+
+// ============================================================================
+// ADMIN / MODERATOR SYSTEM
+// Admin = the fixed ADMIN_EMAIL account. Moderators = accounts the admin
+// promotes. Both can hide/unhide accounts and books, and both can see the
+// confidential WhatsApp access log. Only admin can promote/demote moderators.
+// ============================================================================
+
+function handleSetModerator_(body) {
+  var me = requireAuth_(body);
+  if (!isAdmin_(me.Email)) return { ok: false, error: 'Only the admin account can manage moderators.' };
+  var ss = getSS_();
+  var users = ss.getSheetByName('Users');
+  var target = findRowById_(users, 'ID', body.targetUserId);
+  if (!target) return { ok: false, error: 'Member not found.' };
+  updateRowFields_(users, target._row, { Role: body.makeModerator ? 'moderator' : '' });
+  logNotification_(ss, target.ID, body.makeModerator ? 'You are now a moderator' : 'Moderator role removed',
+    body.makeModerator ? 'The admin made you a moderator.' : 'Your moderator role was removed.');
+  return { ok: true };
+}
+
+function handleSetHidden_(body) {
+  var me = requireAuth_(body);
+  if (!isStaff_(me)) return { ok: false, error: 'Only admin or moderators can do this.' };
+  var ss = getSS_();
+  var sheetName = body.targetType === 'book' ? 'Books' : 'Users';
+  var idCol = body.targetType === 'book' ? 'BookID' : 'ID';
+  var sheet = ss.getSheetByName(sheetName);
+  var row = findRowById_(sheet, idCol, body.targetId);
+  if (!row) return { ok: false, error: 'Not found.' };
+  updateRowFields_(sheet, row._row, { Hidden: body.hidden ? 'true' : '' });
+
+  // Tell every other staff member (admin + moderators) via the bell icon —
+  // so hide/unhide actions are always visible to the whole staff team.
+  var label = body.targetType === 'book'
+    ? ('the book "' + (row.BookName || 'Untitled') + '"')
+    : ('the account "' + (row.DisplayName || '') + '"');
+  var verb = body.hidden ? 'hid' : 'unhid';
+  notifyAllStaff_(ss, me.ID, (body.hidden ? 'Hidden' : 'Unhidden') + ': ' + label,
+    me.DisplayName + ' ' + verb + ' ' + label + '.');
+
+  return { ok: true };
+}
+
+// Sends a bell-icon notification to admin + every moderator, excluding
+// whoever just performed the action (they already know they did it).
+function notifyAllStaff_(ss, actingUserId, title, body) {
+  var users = sheetToObjects_(ss.getSheetByName('Users'));
+  users.forEach(function (u) {
+    if (String(u.ID) === String(actingUserId)) return;
+    if (isAdmin_(u.Email) || isModerator_(u)) {
+      logNotification_(ss, u.ID, title, body);
+    }
+  });
+}
+
+// Admin/moderator dashboard: who's a moderator, and the confidential
+// WhatsApp access log (see #24 — every time someone taps the WhatsApp
+// button, it's recorded here for safety/accountability).
+function handleGetStaffPanel_(body) {
+  var me = requireAuth_(body);
+  if (!isStaff_(me)) return { ok: false, error: 'Only admin or moderators can view this.' };
+  var ss = getSS_();
+  var users = sheetToObjects_(ss.getSheetByName('Users'));
+  var log = sheetToObjects_(ss.getSheetByName('WhatsappAccessLog'))
+    .sort(function (a, b) { return new Date(b.AccessedAt) - new Date(a.AccessedAt); })
+    .slice(0, 200); // most recent 200 — plenty for review, keeps the response light
+
+  return {
+    ok: true,
+    isAdmin: isAdmin_(me.Email),
+    members: users.map(function (u) {
+      return { id: u.ID, displayName: u.DisplayName, email: u.Email, role: u.Role || '', hidden: u.Hidden === 'true' };
+    }),
+    whatsappAccessLog: log
+  };
+}
+
+// #24 — before unlocking the WhatsApp button, the user must re-type their
+// own password. On success, this logs exactly who accessed whose contact
+// info, for which book, and when — visible only to admin/moderators.
+function handleConfirmWhatsappAccess_(body) {
+  var user = requireAuth_(body);
+  var hash = hashPassword_(body.password || '', user.PassSalt);
+  if (hash !== user.PassHash) return { ok: false, error: 'Incorrect password.' };
+
+  var ss = getSS_();
+  var book = findRowById_(ss.getSheetByName('Books'), 'BookID', body.bookId);
+  if (!book) return { ok: false, error: 'Book not found.' };
+  var owner = findRowById_(ss.getSheetByName('Users'), 'ID', book.OwnerID);
+  if (!owner) return { ok: false, error: 'Owner not found.' };
+
+  var myReq = sheetToObjects_(ss.getSheetByName('Requests')).filter(function (r) {
+    return String(r.BookID) === String(book.BookID) && String(r.RequesterID) === String(user.ID)
+      && (r.Status === 'pending' || r.Status === 'approved');
+  })[0];
+
+  ss.getSheetByName('WhatsappAccessLog').appendRow([
+    user.ID, user.DisplayName, owner.ID, owner.DisplayName,
+    book.BookID, book.BookName, myReq ? myReq.DurationDays : '', new Date()
+  ]);
+
+  // Admin and every moderator get told immediately — both a bell entry and
+  // a bold push notification, per #24/#25.
+  var allUsers = sheetToObjects_(ss.getSheetByName('Users'));
+  var staffMsg = user.DisplayName + ' accessed ' + owner.DisplayName + '\u2019s WhatsApp for "' + book.BookName + '".';
+  allUsers.filter(function (u) { return isStaff_(u); }).forEach(function (staffUser) {
+    logNotification_(ss, staffUser.ID, 'WhatsApp access', staffMsg);
+    sendPushToUser_(staffUser.ID, 'WhatsApp access', staffMsg);
+  });
+
+  return { ok: true, whatsapp: String(owner.WhatsApp || '') };
+}
+
+
+
+
+
+
+
+function debugAuthorize() {
+  try {
+    var token = getFCMAccessToken_();
+    Logger.log('SUCCESS — got an access token, length: ' + token.length);
+  } catch (e) {
+    Logger.log('FAILED: ' + e);
+  }
+}
+
+
+
