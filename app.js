@@ -604,6 +604,15 @@ function renderModalStatusArea(b) {
   waBtn.classList.add('disabled');
   waBtn.removeAttribute('href');
 
+  // Staff-only hide/unhide control — hidden from everyone else.
+  const hideBtn = $('modalHideBookBtn');
+  if (currentUser && currentUser.isStaff) {
+    hideBtn.classList.remove('hidden');
+    hideBtn.textContent = b.hidden ? 'Unhide this book' : 'Hide this book';
+  } else {
+    hideBtn.classList.add('hidden');
+  }
+
   if (b.isMine) {
     editIcon.classList.remove('hidden');
     statusEl.textContent = b.status === 'available'
@@ -641,6 +650,23 @@ $('modalWhatsappBtn').onclick = (e) => {
   $('waConfirmModal').classList.remove('hidden');
   $('waConfirmPassword').focus();
 };
+$('modalHideBookBtn').onclick = (e) => guardedAction('hidebook', e.target, async () => {
+  if (!activeModalBook) return;
+  const b = activeModalBook;
+  const newHidden = !b.hidden;
+  const prev = b.hidden;
+  b.hidden = newHidden;
+  renderModalStatusArea(b);
+  try {
+    await api('setHidden', { targetType: 'book', targetId: b.bookId, hidden: newHidden });
+    showToast(newHidden ? 'Book hidden from public view.' : 'Book is visible again.');
+  } catch (err) {
+    b.hidden = prev;
+    renderModalStatusArea(b);
+    throw err;
+  }
+});
+
 $('closeWaConfirmBtn').onclick = () => $('waConfirmModal').classList.add('hidden');
 $('waConfirmModal').querySelector('.modal-backdrop').onclick = () => $('waConfirmModal').classList.add('hidden');
 
@@ -1159,6 +1185,20 @@ async function registerServiceWorker() {
     console.warn('Service worker registration failed:', err);
     return null;
   }
+}
+
+// Whenever a NEW service worker (new app version) takes control of the page,
+// reload exactly once so the user always ends up on fully-matching, fresh
+// code — this is what fixes "sometimes it doesn't update" / stale-version
+// bugs like mismatched button IDs between an old cached app.js and a newer
+// index.html. Guarded so it can only ever fire one reload per page load.
+if ('serviceWorker' in navigator) {
+  let bhReloadedOnce = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (bhReloadedOnce) return;
+    bhReloadedOnce = true;
+    window.location.reload();
+  });
 }
 
 async function maybeShowNotifBanner() {
