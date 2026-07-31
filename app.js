@@ -786,31 +786,46 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
 $('greetingPopupOkBtn').onclick = () => $('greetingPopupModal').classList.add('hidden');
 
 // ===================================================== NOTIFICATIONS (#3) ==
+let lastNotifData = null; // cached response for instant re-open, matching the Explore/Members pattern
+
+function renderNotifList(data) {
+  if (!data.notifications.length) {
+    $('notifList').classList.add('empty-hint');
+    $('notifList').textContent = 'No notifications yet.';
+    return;
+  }
+  $('notifList').classList.remove('empty-hint');
+  $('notifList').innerHTML = data.notifications.map(n => `
+    <div class="notif-item ${n.read ? '' : 'unread'}">
+      <div class="notif-title">${escapeHtml(n.title)}</div>
+      <div class="notif-body">${escapeHtml(n.body)}</div>
+      <div class="notif-date">${formatDate(n.createdAt)}</div>
+    </div>`).join('');
+}
+
 async function checkNotifRedDot() {
   if (!currentUser) return;
   try {
     const data = await api('listNotifications', {});
+    lastNotifData = data;
     $('notifRedDot').classList.toggle('hidden', data.unreadCount === 0);
   } catch (err) { /* silent — a failed badge check shouldn't interrupt anything */ }
 }
 
 $('notifBellBtn').onclick = async () => {
   $('notifModal').classList.remove('hidden');
-  $('notifList').classList.add('empty-hint');
-  $('notifList').textContent = 'Loading…';
+
+  if (lastNotifData) {
+    renderNotifList(lastNotifData); // instant — no spinner if we already have data
+  } else {
+    $('notifList').classList.add('empty-hint');
+    $('notifList').textContent = 'Loading…';
+  }
+
   try {
     const data = await api('listNotifications', {});
-    if (!data.notifications.length) {
-      $('notifList').textContent = 'No notifications yet.';
-      return;
-    }
-    $('notifList').classList.remove('empty-hint');
-    $('notifList').innerHTML = data.notifications.map(n => `
-      <div class="notif-item ${n.read ? '' : 'unread'}">
-        <div class="notif-title">${escapeHtml(n.title)}</div>
-        <div class="notif-body">${escapeHtml(n.body)}</div>
-        <div class="notif-date">${formatDate(n.createdAt)}</div>
-      </div>`).join('');
+    lastNotifData = data;
+    renderNotifList(data);
     // Reading the list IS the "mark as read" action, per spec.
     if (data.unreadCount > 0) {
       api('markNotificationsRead', {}).then(() => $('notifRedDot').classList.add('hidden')).catch(() => {});
@@ -818,11 +833,46 @@ $('notifBellBtn').onclick = async () => {
       $('notifRedDot').classList.add('hidden');
     }
   } catch (err) {
-    $('notifList').textContent = err.message;
+    if (!lastNotifData) $('notifList').textContent = err.message;
+    // If we already showed cached data, a failed refresh shouldn't wipe it.
   }
 };
 $('closeNotifBtn').onclick = () => $('notifModal').classList.add('hidden');
 $('notifModal').querySelector('.modal-backdrop').onclick = () => $('notifModal').classList.add('hidden');
+
+// ============================================================ #15 LIVE UPDATE
+let lastLiveUpdateData = null;
+
+function renderLiveUpdateList(data) {
+  if (!data.updates.length) {
+    $('liveUpdateList').classList.add('empty-hint');
+    $('liveUpdateList').textContent = 'No activity yet — be the first!';
+    return;
+  }
+  $('liveUpdateList').classList.remove('empty-hint');
+  $('liveUpdateList').innerHTML = data.updates.map(u => `
+    <div class="notif-item">
+      ${u.imageFileId ? `<img class="live-update-thumb" src="${driveImg(u.imageFileId)}" alt="">` : ''}
+      <div class="notif-body">${escapeHtml(u.text)}</div>
+      <div class="notif-date">${formatDate(u.createdAt)}</div>
+    </div>`).join('');
+}
+
+$('liveUpdateCube').onclick = async () => {
+  $('liveUpdateModal').classList.remove('hidden');
+  if (lastLiveUpdateData) renderLiveUpdateList(lastLiveUpdateData);
+  else { $('liveUpdateList').classList.add('empty-hint'); $('liveUpdateList').textContent = 'Loading…'; }
+
+  try {
+    const data = await api('getLiveUpdates', {});
+    lastLiveUpdateData = data;
+    renderLiveUpdateList(data);
+  } catch (err) {
+    if (!lastLiveUpdateData) $('liveUpdateList').textContent = err.message;
+  }
+};
+$('closeLiveUpdateBtn').onclick = () => $('liveUpdateModal').classList.add('hidden');
+$('liveUpdateModal').querySelector('.modal-backdrop').onclick = () => $('liveUpdateModal').classList.add('hidden');
 
 // ==================================================== EDIT PROFILE (#20) ==
 let editProfilePendingDp = null;

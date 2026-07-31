@@ -194,6 +194,10 @@
       <span class="cube-num" id="cubeMemberCount">0</span>
       <span class="cube-label">Members</span>
     </button>
+    <button class="cube" id="liveUpdateCube">
+      <span class="cube-icon">📡</span>
+      <span class="cube-label">Live Update</span>
+    </button>
   </div>
 
   <button class="btn btn-primary btn-wide add-book-cta" id="addBookCta">+ Add Books!</button>
@@ -369,6 +373,16 @@
     <button class="modal-close" id="closeNotifBtn">&times;</button>
     <h3>Notifications</h3>
     <div id="notifList" class="notif-list empty-hint">Loading…</div>
+  </div>
+</div>
+
+<div id="liveUpdateModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet notif-sheet">
+    <button class="modal-close" id="closeLiveUpdateBtn">&times;</button>
+    <h3>Live Update</h3>
+    <p class="modal-sub">What's happening in the community right now</p>
+    <div id="liveUpdateList" class="notif-list empty-hint">Loading…</div>
   </div>
 </div>
 

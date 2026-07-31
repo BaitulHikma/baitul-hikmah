@@ -332,7 +332,9 @@ code {
   color: var(--text);
 }
 .cube-num { font-family: var(--font-display); font-size: 1.8rem; color: var(--accent); }
+.cube-icon { font-size: 1.6rem; }
 .cube-label { font-size: 0.85rem; color: var(--text-dim); }
+.live-update-thumb { width: 100%; max-height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; }
 
 .add-book-cta { margin-bottom: 18px; }
 
