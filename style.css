@@ -241,6 +241,26 @@ code {
 .btn.disabled, .btn:disabled { opacity: 0.4; pointer-events: none; }
 
 /* ---------------------------------------------------------------- PROFILE */
+.hadith-strip {
+  overflow: hidden; white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm); padding: 8px 0; margin-bottom: 14px;
+}
+.hadith-strip-track {
+  display: inline-block; padding-left: 100%;
+  animation: hadith-scroll 32s linear infinite;
+}
+.hadith-strip-track span {
+  color: var(--accent); font-size: 0.78rem; font-style: italic;
+  font-family: var(--font-display);
+}
+@keyframes hadith-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+.greeting-popup h3 { margin-bottom: 12px; }
+.greeting-popup .greeting-text { text-align: center; line-height: 1.6; margin-bottom: 18px; }
+
 .profile-greeting { margin-bottom: 18px; text-align: center; }
 .id-tag { color: var(--text-dim); font-size: 0.8rem; margin: 0 0 4px; }
 .profile-greeting h2 {

@@ -238,8 +238,13 @@ $('signupForm').onsubmit = (e) => {
     }).catch(err => { $('signupError').textContent = err.message; throw err; });
 
     saveSession(data.user);
-    showToast('Welcome! Account created.');
     goPage('profile');
+    if (data.greetingText) {
+      $('greetingPopupText').textContent = data.greetingText;
+      $('greetingPopupModal').classList.remove('hidden');
+    } else {
+      showToast('Welcome! Account created.');
+    }
   });
 };
 
@@ -294,6 +299,8 @@ async function refreshProfile() {
     $('profileBioLine').classList.toggle('hidden', !data.profile.bio);
     $('totalSuccessfulBorrows').textContent = data.totalSuccessfulBorrows;
     $('totalSuccessfulReturns').textContent = data.totalSuccessfulReturns;
+    $('hadithStripText').textContent = data.todayHadith || '';
+    $('hadithStrip').classList.toggle('hidden', !data.todayHadith);
     $('myBooksCount').textContent = data.profile.myBooksCount;
     $('borrowedCount').textContent = data.profile.borrowedCount;
     $('lentOutCount').textContent = data.profile.lentOutCount;
@@ -752,6 +759,9 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
   showToast('Books uploaded!');
   if (data.leveledUp) showToast('🎉 Level up! You reached Level ' + data.newLevel + '!');
 });
+
+// ============================================== SIGNUP GREETING POPUP (#13)
+$('greetingPopupOkBtn').onclick = () => $('greetingPopupModal').classList.add('hidden');
 
 // ==================================================== EDIT PROFILE (#20) ==
 let editProfilePendingDp = null;

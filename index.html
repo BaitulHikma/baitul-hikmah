@@ -155,6 +155,12 @@
      PROFILE PAGE (home page after sign-in)
      ============================================================ -->
 <section id="page-profile" class="page hidden">
+  <div id="hadithStrip" class="hadith-strip hidden">
+    <div class="hadith-strip-track">
+      <span id="hadithStripText"></span>
+    </div>
+  </div>
+
   <div class="profile-greeting">
     <div class="profile-dp-wrap" id="openEditProfileBtn">
       <img id="profileDpImg" src="" alt="">
@@ -339,6 +345,15 @@
       <textarea id="editProfileBio" maxlength="300" rows="3" placeholder="Tell other members a little about yourself…"></textarea>
     </div>
     <button id="editProfileSaveBtn" class="btn btn-primary btn-wide">Save changes</button>
+  </div>
+</div>
+
+<div id="greetingPopupModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small greeting-popup">
+    <h3>Assalamu a'laikum!</h3>
+    <p id="greetingPopupText" class="form-hint greeting-text"></p>
+    <button id="greetingPopupOkBtn" class="btn btn-primary btn-wide">OK</button>
   </div>
 </div>
 
