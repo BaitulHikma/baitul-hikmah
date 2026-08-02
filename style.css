@@ -469,6 +469,149 @@ a:hover { text-decoration: underline; }
 .leaderboard-banner .lb-item { color: var(--text-dim); }
 .leaderboard-banner .lb-item b { color: var(--accent); }
 
+/* TOTALS STRIP BELOW HADITH (#8) */
+.totals-strip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+.totals-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--accent);
+}
+.totals-stats {
+  color: var(--text-dim);
+}
+.totals-stats b {
+  color: var(--text);
+}
+
+/* FEATURED CARDS WITH POSTER DP & BOOK COVER OVERLAYS (#2) */
+.featured-card-overlay-dp {
+  position: absolute;
+  top: 8px; left: 8px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  z-index: 3;
+}
+.featured-card-overlay-cover {
+  position: absolute;
+  bottom: 8px; right: 8px;
+  width: 38px; height: 50px;
+  border-radius: 4px;
+  border: 1.5px solid #fff;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  z-index: 3;
+}
+
+/* FB STORIES OVERLAY (#2) */
+.story-modal-overlay {
+  z-index: 95;
+  background: rgba(0, 0, 0, 0.92);
+}
+.story-backdrop {
+  position: absolute;
+  inset: 0;
+}
+.story-container {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  height: 100%;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-sizing: border-box;
+  z-index: 2;
+  margin: auto;
+}
+.story-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.story-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.story-dp {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent);
+}
+.story-user-text {
+  display: flex;
+  flex-direction: column;
+}
+.story-poster-name {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.story-time-ago {
+  color: rgba(255,255,255,0.7);
+  font-size: 0.72rem;
+}
+.story-close-btn {
+  color: #fff !important;
+  font-size: 2rem !important;
+  line-height: 1;
+}
+.story-book-bar {
+  margin-bottom: 10px;
+}
+.story-book-name {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.story-image-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  border-radius: 12px;
+  background: #000;
+}
+.story-img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.story-borrow-btn {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  background: var(--accent);
+  color: #1a1406;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 10;
+}
+
 /* FEATURED BOOK PAGES (#16) */
 .featured-header { margin-bottom: 12px; }
 .featured-toolbar { display: flex; gap: 8px; margin-bottom: 14px; }

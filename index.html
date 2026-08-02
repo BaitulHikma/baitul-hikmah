@@ -99,15 +99,30 @@
       </div>
       <div class="field">
         <label>Display name</label>
-        <input type="text" id="signupName" required>
+        <input type="text" id="signupName" required placeholder="Full Name">
       </div>
       <div class="field">
         <label>WhatsApp number</label>
         <input type="text" id="signupWhatsapp" required value="+880" placeholder="+8801XXXXXXXXX">
       </div>
       <div class="field">
-        <label>Email</label>
-        <input type="email" id="signupEmail" required>
+        <label>Email (Verification code will be sent)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="email" id="signupEmail" required style="flex:1;" placeholder="your.email@gmail.com">
+          <button type="button" id="sendSignupCodeBtn" class="btn btn-secondary" style="padding:8px 12px; font-size:0.8rem; white-space:nowrap;">Send Code</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Email Verification Code</label>
+        <input type="text" id="signupVerificationCode" required inputmode="numeric" maxlength="6" placeholder="6-digit code">
+      </div>
+      <div class="field">
+        <label>City</label>
+        <input type="text" id="signupCity" required placeholder="e.g. Dhaka">
+      </div>
+      <div class="field">
+        <label>Near Area</label>
+        <input type="text" id="signupArea" required placeholder="e.g. Mirpur-10">
       </div>
       <div class="field">
         <label>Set password</label>
@@ -118,6 +133,7 @@
         <input type="text" id="signupReference">
       </div>
       <p class="form-error" id="signupError"></p>
+      <p class="form-success" id="signupSuccess"></p>
       <button type="submit" class="btn btn-primary btn-wide">Create account</button>
       <div class="auth-links">
         <a href="#" id="gotoLoginFromSignup">Already have an account? Sign in</a>
@@ -163,6 +179,12 @@
     </div>
   </div>
 
+  <!-- Totals strip right below daily hadith panel (#8) -->
+  <div id="totalsStrip" class="totals-strip">
+    <span class="totals-title">Baitul Hikmah</span>
+    <span class="totals-stats">Totals: <b><span id="totalSuccessfulBorrows">0</span></b> borrows &nbsp;·&nbsp; <b><span id="totalSuccessfulReturns">0</span></b> returns</span>
+  </div>
+
   <div class="profile-header-card">
     <div class="profile-header-top">
       <div class="profile-dp-wrap" id="openEditProfileBtn">
@@ -172,28 +194,12 @@
           <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
       </div>
-      <!-- Refined, subtle successful counts in top corner (#17) -->
-      <div class="success-stats-compact">
-        <div class="stat-chip"><span class="chip-val" id="totalSuccessfulBorrows">0</span> <span class="chip-lbl">borrows</span></div>
-        <div class="stat-chip"><span class="chip-val" id="totalSuccessfulReturns">0</span> <span class="chip-lbl">returns</span></div>
-      </div>
     </div>
     <div class="profile-greeting">
       <p class="id-tag">ID: <span id="profileIdNum"></span></p>
       <h2 id="profileGreeting"></h2>
       <p class="profile-bio" id="profileBioLine"></p>
     </div>
-  </div>
-
-  <div class="cube-row">
-    <button class="cube" id="exploreCube">
-      <span class="cube-num" id="cubeBookCount">0</span>
-      <span class="cube-label">Explore</span>
-    </button>
-    <button class="cube" id="membersCube">
-      <span class="cube-num" id="cubeMemberCount">0</span>
-      <span class="cube-label">Members</span>
-    </button>
   </div>
 
   <button class="btn btn-primary btn-wide add-book-cta" id="addBookCta">+ Add Books!</button>
@@ -213,29 +219,29 @@
     </button>
   </div>
 
-  <div class="feed-section" id="incomingRequestsSection">
+  <div class="feed-section hidden" id="incomingRequestsSection">
     <h3>Requested — waiting on your approval</h3>
-    <div id="incomingRequestsList" class="card-list empty-hint">No incoming requests.</div>
+    <div id="incomingRequestsList" class="card-list empty-hint"></div>
   </div>
 
-  <div class="feed-section" id="outgoingRequestsSection">
+  <div class="feed-section hidden" id="outgoingRequestsSection">
     <h3>Requesting — waiting on the owner</h3>
-    <div id="outgoingRequestsList" class="card-list empty-hint">No outgoing requests.</div>
+    <div id="outgoingRequestsList" class="card-list empty-hint"></div>
   </div>
 
-  <div class="feed-section" id="borrowedSection">
+  <div class="feed-section hidden" id="borrowedSection">
     <h3>Borrowed by you</h3>
-    <div id="borrowedList" class="card-list empty-hint">No borrowed books.</div>
+    <div id="borrowedList" class="card-list empty-hint"></div>
   </div>
 
-  <div class="feed-section" id="lentOutSection">
+  <div class="feed-section hidden" id="lentOutSection">
     <h3>Lent out</h3>
-    <div id="lentOutList" class="card-list empty-hint">No books lent out.</div>
+    <div id="lentOutList" class="card-list empty-hint"></div>
   </div>
 
-  <div class="feed-section" id="returnRequestsSection">
+  <div class="feed-section hidden" id="returnRequestsSection">
     <h3>Return requests — confirm the book came back</h3>
-    <div id="returnRequestsList" class="card-list empty-hint">No return requests.</div>
+    <div id="returnRequestsList" class="card-list empty-hint"></div>
   </div>
 
   <button class="btn btn-ghost btn-wide" id="signOutBtn">Sign out</button>
@@ -243,6 +249,9 @@
 
 <!-- EXPLORE / LIBRARY PAGE -->
 <section id="page-explore" class="page hidden">
+  <div style="display:flex; align-items:center; justify-space-between; margin-bottom:12px;">
+    <h2 class="page-title" style="margin:0;">Explore (<span id="exploreTotalCount">0</span> Books)</h2>
+  </div>
   <div class="explore-toolbar">
     <input type="search" id="bookSearch" placeholder="Search by book, writer, publisher, owner...">
     <button id="filterBtn" class="icon-btn" aria-label="Filter">
@@ -261,7 +270,7 @@
 
 <!-- MEMBERS PAGE -->
 <section id="page-members" class="page hidden">
-  <h2 class="page-title">Members</h2>
+  <h2 class="page-title">Members (<span id="membersTotalCount">0</span> Members)</h2>
   <div class="members-layout">
     <div class="members-main">
       <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
@@ -306,9 +315,17 @@
 <!-- ADD BOOKS PAGE -->
 <section id="page-addbooks" class="page hidden">
   <h2 class="page-title">Add Books</h2>
-  <p class="form-hint">
-    Pick photo(s) from your device. Each image is automatically compressed under 100KB. Tap a thumbnail to add book details (writer, page count, etc.) anytime.
+  <div class="upload-type-tabs" style="display:flex; gap:8px; margin-bottom:12px;">
+    <button class="chip active" id="typePhysicalBtn" type="button">Physical Book</button>
+    <button class="chip" id="typePdfBtn" type="button">PDF Book</button>
+  </div>
+  <p class="form-hint" id="uploadHintText">
+    Pick photo(s) of physical book covers from your device. Each image is automatically compressed.
   </p>
+  <div id="pdfDownloadLinkWrap" class="field hidden">
+    <label>PDF Download Link (Drive, Dropbox, Direct URL, etc.)</label>
+    <input type="url" id="pdfDownloadLink" placeholder="https://drive.google.com/file/d/...">
+  </div>
   <input type="file" id="bookFilesInput" accept="image/*" multiple>
   <p id="compressStatus" class="form-hint hidden"></p>
   <div id="addBooksPreview" class="add-preview-grid"></div>
@@ -368,18 +385,27 @@
   </div>
 </div>
 
-<!-- FEATURED ZOOM MODAL (High resolution zoom viewer) (#16) -->
-<div id="featuredZoomModal" class="modal hidden" style="z-index:90;">
-  <div class="modal-backdrop" id="closeFeaturedZoomBackdrop"></div>
-  <div class="modal-sheet featured-zoom-sheet">
-    <button class="modal-close" id="closeFeaturedZoomBtn" style="z-index:100; color:#fff;">&times;</button>
-    <div class="zoom-header">
-      <h3 id="zoomBookTitle" style="color:var(--text); margin:0; font-size:1rem;"></h3>
-      <p id="zoomMetaLine" style="color:var(--text-dim); font-size:0.78rem; margin:2px 0 10px;"></p>
+<!-- FEATURED ZOOM MODAL (FB Stories Style Overlay) (#2) -->
+<div id="featuredZoomModal" class="modal hidden story-modal-overlay">
+  <div class="story-backdrop" id="closeFeaturedZoomBackdrop"></div>
+  <div class="story-container">
+    <div class="story-header">
+      <div class="story-user-info">
+        <img id="storyPosterDp" src="" class="story-dp" alt="">
+        <div class="story-user-text">
+          <span id="storyPosterName" class="story-poster-name"></span>
+          <span id="storyPostTime" class="story-time-ago"></span>
+        </div>
+      </div>
+      <button class="modal-close story-close-btn" id="closeFeaturedZoomBtn">&times;</button>
     </div>
-    <div class="zoom-img-container" id="zoomImgContainer">
-      <img id="zoomModalImg" src="" alt="Book page image" class="zoom-img">
+    <div class="story-book-bar">
+      <span id="storyBookName" class="story-book-name"></span>
     </div>
+    <div class="story-image-wrap">
+      <img id="zoomModalImg" src="" alt="Book page image" class="story-img">
+    </div>
+    <button id="storyBorrowBtn" class="story-borrow-btn hidden">Borrow</button>
   </div>
 </div>
 
@@ -398,7 +424,9 @@
     <p id="modalWriter" class="modal-sub"></p>
     <p id="modalPublisher" class="modal-sub"></p>
     <p id="modalOwner" class="modal-sub"></p>
+    <p id="modalOwnerLocation" class="modal-sub" style="color:var(--accent); font-weight:500;"></p>
     <p id="modalStatus" class="modal-status"></p>
+    <a id="modalDownloadPdfBtn" href="#" target="_blank" rel="noopener" class="btn btn-primary btn-wide hidden" style="margin-bottom:8px;">📥 Download PDF Book</a>
     <a id="modalWhatsappBtn" class="btn btn-secondary btn-wide disabled" target="_blank" rel="noopener">Message owner on WhatsApp</a>
 
     <div id="modalBorrowArea">
@@ -468,6 +496,10 @@
       <label>Page count</label>
       <input type="number" id="editMetaPageCount" min="1" inputmode="numeric" placeholder="e.g. 320">
     </div>
+    <div class="field">
+      <label>PDF Download Link (optional)</label>
+      <input type="url" id="editMetaDownloadLink" placeholder="https://drive.google.com/file/d/...">
+    </div>
     <button id="editMetaSaveBtn" class="btn btn-primary btn-wide">Save</button>
   </div>
 </div>
@@ -486,6 +518,14 @@
     <div class="field">
       <label>Name</label>
       <input type="text" id="editProfileName">
+    </div>
+    <div class="field">
+      <label>City</label>
+      <input type="text" id="editProfileCity" placeholder="e.g. Dhaka">
+    </div>
+    <div class="field">
+      <label>Near Area</label>
+      <input type="text" id="editProfileArea" placeholder="e.g. Mirpur-10">
     </div>
     <div class="field">
       <label>Bio</label>

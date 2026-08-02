@@ -42,11 +42,20 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function getOrdinalSuffix(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function formatDate(d) {
   if (!d) return '';
   const dt = new Date(d);
-  if (isNaN(dt)) return String(d);
-  return dt.toLocaleDateString();
+  if (isNaN(dt.getTime())) return String(d);
+  const day = getOrdinalSuffix(dt.getDate());
+  const month = dt.toLocaleString('en-US', { month: 'long' });
+  const year = dt.getFullYear();
+  return `${day} ${month} ${year}`;
 }
 
 function timeAgo(d) {
@@ -248,11 +257,23 @@ $('loginForm').onsubmit = (e) => {
   });
 };
 
+$('sendSignupCodeBtn').onclick = (e) => {
+  guardedAction('sendSignupCode', e.target, async () => {
+    $('signupError').textContent = '';
+    $('signupSuccess').textContent = '';
+    const email = $('signupEmail').value.trim();
+    if (!email) { $('signupError').textContent = 'Please enter your email address first.'; return; }
+    await api('sendSignupCode', { email }).catch(err => { $('signupError').textContent = err.message; throw err; });
+    $('signupSuccess').textContent = 'Verification code sent to ' + email + '! Check your inbox.';
+  });
+};
+
 $('signupForm').onsubmit = (e) => {
   e.preventDefault();
   const btn = e.target.querySelector('button[type=submit]');
   guardedAction('signup', btn, async () => {
     $('signupError').textContent = '';
+    $('signupSuccess').textContent = '';
     let dpBase64 = '';
     const f = $('signupDp').files[0];
     if (f) dpBase64 = await compressImage(f, 100);
@@ -261,6 +282,9 @@ $('signupForm').onsubmit = (e) => {
       displayName: $('signupName').value.trim(),
       whatsapp: $('signupWhatsapp').value.trim(),
       email: $('signupEmail').value.trim(),
+      verificationCode: $('signupVerificationCode').value.trim(),
+      city: $('signupCity').value.trim(),
+      area: $('signupArea').value.trim(),
       password: $('signupPassword').value,
       reference: $('signupReference').value.trim(),
       dpBase64: dpBase64
@@ -317,21 +341,31 @@ async function refreshProfile() {
   try {
     const data = await api('getProfile', {});
     profileData = data;
-    $('profileIdNum').textContent = data.profile.id;
-    $('profileGreeting').textContent = "Assalamu a'laikum, " + data.profile.displayName + "! 👋";
-    $('profileDpImg').src = driveImg(data.profile.dpFileId);
-    $('profileLevelBadge').textContent = 'Lv ' + data.profile.level;
-    $('profileBioLine').textContent = data.profile.bio || '';
-    $('profileBioLine').classList.toggle('hidden', !data.profile.bio);
-    $('totalSuccessfulBorrows').textContent = data.totalSuccessfulBorrows || 0;
-    $('totalSuccessfulReturns').textContent = data.totalSuccessfulReturns || 0;
-    $('hadithStripText').textContent = data.todayHadith || '';
-    $('hadithStrip').classList.toggle('hidden', !data.todayHadith);
-    $('myBooksCount').textContent = data.profile.myBooksCount || 0;
-    $('borrowedCount').textContent = data.profile.borrowedCount || 0;
-    $('lentOutCount').textContent = data.profile.lentOutCount || 0;
-    $('cubeBookCount').textContent = data.totalBooksCount || 0;
-    $('cubeMemberCount').textContent = data.totalMembersCount || 0;
+    const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
+    setTxt('profileIdNum', data.profile.id);
+    setTxt('profileGreeting', "Assalamu a'laikum, " + data.profile.displayName + "! 👋");
+    setSrc('profileDpImg', driveImg(data.profile.dpFileId));
+    setTxt('profileLevelBadge', 'Lv ' + data.profile.level);
+
+    const bioEl = $('profileBioLine');
+    if (bioEl) {
+      bioEl.textContent = data.profile.bio || '';
+      bioEl.classList.toggle('hidden', !data.profile.bio);
+    }
+
+    setTxt('totalSuccessfulBorrows', data.totalSuccessfulBorrows || 0);
+    setTxt('totalSuccessfulReturns', data.totalSuccessfulReturns || 0);
+    setTxt('hadithStripText', data.todayHadith || '');
+
+    const hadithEl = $('hadithStrip');
+    if (hadithEl) hadithEl.classList.toggle('hidden', !data.todayHadith);
+
+    setTxt('myBooksCount', data.profile.myBooksCount || 0);
+    setTxt('borrowedCount', data.profile.borrowedCount || 0);
+    setTxt('lentOutCount', data.profile.lentOutCount || 0);
+    setTxt('cubeBookCount', data.totalBooksCount || 0);
+    setTxt('cubeMemberCount', data.totalMembersCount || 0);
 
     renderRequestFeed('incomingRequestsList', data.incomingRequests, 'incoming');
     renderRequestFeed('outgoingRequestsList', data.outgoingRequests, 'outgoing');
@@ -437,9 +471,9 @@ window.confirmReturn = (btn, id) => guardedAction('confirmreturn-' + id, btn, as
   refreshProfile();
 });
 
-$('exploreCube').onclick = () => { currentExploreFilter = 'all'; singleBookId = null; goPage('explore'); };
-$('membersCube').onclick = () => goPage('members');
-$('addBookCta').onclick = () => goPage('addbooks');
+if ($('exploreCube')) $('exploreCube').onclick = () => { currentExploreFilter = 'all'; singleBookId = null; goPage('explore'); };
+if ($('membersCube')) $('membersCube').onclick = () => goPage('members');
+if ($('addBookCta')) $('addBookCta').onclick = () => goPage('addbooks');
 
 document.querySelectorAll('#detailSquares .square-btn').forEach(btn => {
   btn.onclick = () => {
@@ -460,6 +494,9 @@ async function refreshBooks() {
     const data = await api('listBooks', {});
     allBooks = data.books || [];
     booksLoadedOnce = true;
+
+    const totalEl = $('exploreTotalCount');
+    if (totalEl) totalEl.textContent = 'Total: ' + allBooks.length + ' book' + (allBooks.length === 1 ? '' : 's');
 
     if (singleBookId) {
       document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
@@ -558,6 +595,25 @@ window.openBookModal = (bookId) => {
     $('modalWriter').textContent = 'Writer: ' + (b.writer || '—');
     $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—') + (b.pageCount ? ' · ' + b.pageCount + ' pages' : '');
     $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');
+
+    const locationText = [b.ownerCity, b.ownerArea].filter(Boolean).join(', ');
+    const locEl = $('modalOwnerLocation');
+    if (locEl) {
+      locEl.textContent = locationText ? 'Location: ' + locationText : '';
+      locEl.classList.toggle('hidden', !locationText);
+    }
+
+    const pdfBtn = $('modalDownloadPdfBtn');
+    if (pdfBtn) {
+      const isPdfBook = b.isPdf || (b.downloadLink && b.downloadLink.length > 5);
+      pdfBtn.classList.toggle('hidden', !isPdfBook);
+      if (isPdfBook && b.downloadLink) {
+        pdfBtn.href = b.downloadLink;
+        pdfBtn.onclick = () => {
+          api('logPdfDownload', { bookId: b.bookId }).catch(() => {});
+        };
+      }
+    }
 
     renderModalStatusArea(b);
   } catch (err) {
@@ -710,6 +766,9 @@ function renderMembersUI(data) {
   allMembers = data.members || [];
   const isStaff = currentUser && currentUser.isStaff;
 
+  const totalEl = $('membersTotalCount');
+  if (totalEl) totalEl.textContent = 'Total: ' + (data.totalMembersCount || allMembers.length) + ' member' + ((data.totalMembersCount || allMembers.length) === 1 ? '' : 's');
+
   // Filter hidden users for non-staff members (#11)
   const visibleMembers = allMembers.filter(m => !m.hidden || isStaff);
 
@@ -845,48 +904,86 @@ function renderFeaturedGallery() {
     return;
   }
 
-  gallery.innerHTML = list.map(p => `
+  gallery.innerHTML = list.map(p => {
+    const posterDp = driveImg(p.posterDpFileId);
+    const mainImg = driveImg(p.imageFileId);
+    const coverImg = driveImg(p.bookCoverFileId);
+
+    return `
     <div class="featured-card" onclick="openFeaturedZoomModal('${p.id}')">
       <div class="featured-card-img-wrap">
-        <img src="${driveImg(p.imageFileId)}" alt="">
+        <img src="${mainImg}" alt="">
+        <img class="featured-card-overlay-dp" src="${posterDp}" alt="" title="Posted by ${escapeHtml(p.memberName)}">
+        <img class="featured-card-overlay-cover" src="${coverImg}" alt="" title="${escapeHtml(p.bookName)}">
       </div>
       <div class="featured-card-body">
         <div class="featured-book-title">${escapeHtml(p.bookName || 'Featured Excerpt')}</div>
         <div class="featured-post-owner">By ${escapeHtml(p.memberName || 'Member')}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 window.openFeaturedZoomModal = (postId) => {
   const p = allFeaturedPosts.find(x => x.id === postId);
   if (!p) return;
-  $('zoomBookTitle').textContent = p.bookName || 'Book Page Excerpt';
-  $('zoomMetaLine').textContent = 'Shared by ' + (p.memberName || 'Member') + ' · ' + (p.writer ? 'Writer: ' + p.writer : '');
-  $('zoomModalImg').src = driveImg(p.imageFileId);
-  $('featuredZoomModal').classList.remove('hidden');
+
+  const posterDp = driveImg(p.posterDpFileId);
+  const mainImg = driveImg(p.imageFileId);
+
+  const dpEl = $('storyPosterDp');
+  if (dpEl) dpEl.src = posterDp;
+
+  const nameEl = $('storyPosterName');
+  if (nameEl) nameEl.textContent = p.memberName || 'Member';
+
+  const timeEl = $('storyPostTime');
+  if (timeEl) timeEl.textContent = timeAgo(p.createdAt);
+
+  const bookEl = $('storyBookName');
+  if (bookEl) bookEl.textContent = 'Book: ' + (p.bookName || 'Untitled') + (p.writer ? ' (' + p.writer + ')' : '');
+
+  const imgEl = $('zoomModalImg') || $('storyZoomImg');
+  if (imgEl) imgEl.src = mainImg;
+
+  const borrowBtn = $('storyBorrowBtn');
+  if (borrowBtn) {
+    borrowBtn.onclick = (e) => {
+      e.stopPropagation();
+      if ($('featuredZoomModal')) $('featuredZoomModal').classList.add('hidden');
+      if (p.bookId) viewBookFromProfile(p.bookId);
+      else goPage('explore');
+    };
+  }
+
+  if ($('featuredZoomModal')) $('featuredZoomModal').classList.remove('hidden');
 };
 
-$('closeFeaturedZoomBtn').onclick = () => $('featuredZoomModal').classList.add('hidden');
-$('closeFeaturedZoomBackdrop').onclick = () => $('featuredZoomModal').classList.add('hidden');
+if ($('closeFeaturedZoomBtn')) $('closeFeaturedZoomBtn').onclick = () => $('featuredZoomModal').classList.add('hidden');
+if ($('closeFeaturedZoomBackdrop')) $('closeFeaturedZoomBackdrop').onclick = () => $('featuredZoomModal').classList.add('hidden');
 
 // POST FEATURED MODAL
-$('openPostFeaturedBtn').onclick = () => {
-  selectedFeaturedBook = null;
-  pendingFeaturedImageB64 = '';
-  $('featuredImageInput').value = '';
-  $('featuredImgPreviewWrap').classList.add('hidden');
-  $('selectedFeaturedBookId').value = '';
-  $('selectedFeaturedBookLabel').textContent = '';
-  $('featuredBookSearch').value = '';
-  $('featuredBookSearchResults').innerHTML = '';
-  $('postFeaturedError').textContent = '';
-  $('confirmPostFeaturedBtn').disabled = true;
-  $('postFeaturedModal').classList.remove('hidden');
-};
+if ($('openPostFeaturedBtn')) {
+  $('openPostFeaturedBtn').onclick = () => {
+    selectedFeaturedBook = null;
+    pendingFeaturedImageB64 = '';
+    if ($('featuredImageInput')) $('featuredImageInput').value = '';
+    if ($('featuredImgPreviewWrap')) $('featuredImgPreviewWrap').classList.add('hidden');
+    if ($('selectedFeaturedBookId')) $('selectedFeaturedBookId').value = '';
+    if ($('selectedFeaturedBookLabel')) $('selectedFeaturedBookLabel').textContent = '';
+    if ($('featuredBookSearch')) $('featuredBookSearch').value = '';
+    if ($('featuredBookSearchResults')) $('featuredBookSearchResults').innerHTML = '';
+    if ($('postFeaturedError')) $('postFeaturedError').textContent = '';
+    if ($('confirmPostFeaturedBtn')) $('confirmPostFeaturedBtn').disabled = true;
+    if ($('postFeaturedModal')) $('postFeaturedModal').classList.remove('hidden');
+  };
+}
 
-$('closePostFeaturedBtn').onclick = () => $('postFeaturedModal').classList.add('hidden');
-$('postFeaturedModal').querySelector('.modal-backdrop').onclick = () => $('postFeaturedModal').classList.add('hidden');
+if ($('closePostFeaturedBtn')) $('closePostFeaturedBtn').onclick = () => $('postFeaturedModal').classList.add('hidden');
+if ($('postFeaturedModal') && $('postFeaturedModal').querySelector('.modal-backdrop')) {
+  $('postFeaturedModal').querySelector('.modal-backdrop').onclick = () => $('postFeaturedModal').classList.add('hidden');
+}
 
 $('featuredImageInput').onchange = async () => {
   const file = $('featuredImageInput').files[0];
@@ -965,6 +1062,22 @@ $('confirmPostFeaturedBtn').onclick = (e) => guardedAction('postfeatured', e.tar
 });
 
 // ADD BOOKS PAGE
+let addBooksIsPdf = false;
+
+$('typePhysicalBtn').onclick = () => {
+  addBooksIsPdf = false;
+  $('typePhysicalBtn').classList.add('active');
+  $('typePdfBtn').classList.remove('active');
+  $('pdfDownloadLinkWrap').classList.add('hidden');
+};
+
+$('typePdfBtn').onclick = () => {
+  addBooksIsPdf = true;
+  $('typePdfBtn').classList.add('active');
+  $('typePhysicalBtn').classList.remove('active');
+  $('pdfDownloadLinkWrap').classList.remove('hidden');
+};
+
 $('bookFilesInput').onchange = async () => {
   const files = Array.from($('bookFilesInput').files);
   if (!files.length) return;
@@ -1011,6 +1124,7 @@ window.openEditMetaForPending = (index) => {
   $('editMetaWriter').value = pf.writer || '';
   $('editMetaPublisher').value = pf.publisher || '';
   $('editMetaPageCount').value = pf.pageCount || '';
+  if ($('editMetaDownloadLink')) $('editMetaDownloadLink').value = pf.downloadLink || '';
   $('editMetaModal').classList.remove('hidden');
 };
 
@@ -1023,10 +1137,17 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   const writer = $('editMetaWriter').value.trim();
   const publisher = $('editMetaPublisher').value.trim();
   const pageCount = $('editMetaPageCount').value.trim();
+  const downloadLink = $('editMetaDownloadLink') ? $('editMetaDownloadLink').value.trim() : '';
 
   if (editMetaContext.mode === 'pending') {
     const pf = pendingBookFiles[editMetaContext.index];
-    if (pf) { pf.bookName = bookName; pf.writer = writer; pf.publisher = publisher; pf.pageCount = pageCount; }
+    if (pf) {
+      pf.bookName = bookName;
+      pf.writer = writer;
+      pf.publisher = publisher;
+      pf.pageCount = pageCount;
+      pf.downloadLink = downloadLink;
+    }
     $('editMetaModal').classList.add('hidden');
     renderAddPreview();
     return;
@@ -1034,10 +1155,14 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
 
   const bookId = editMetaContext.bookId;
   $('editMetaModal').classList.add('hidden');
-  await api('editBook', { bookId, bookName, writer, publisher, pageCount });
+  await api('editBook', { bookId, bookName, writer, publisher, pageCount, downloadLink });
   showToast('Book details updated.');
   if (activeModalBook && activeModalBook.bookId === bookId) {
-    activeModalBook.bookName = bookName; activeModalBook.writer = writer; activeModalBook.publisher = publisher; activeModalBook.pageCount = pageCount;
+    activeModalBook.bookName = bookName;
+    activeModalBook.writer = writer;
+    activeModalBook.publisher = publisher;
+    activeModalBook.pageCount = pageCount;
+    activeModalBook.downloadLink = downloadLink;
     openBookModal(bookId);
   }
   refreshBooks();
@@ -1047,12 +1172,20 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
   if (!pendingBookFiles.length) return;
   $('addBooksError').textContent = '';
   $('addBooksSuccess').textContent = '';
-  const data = await api('addBooks', { files: pendingBookFiles })
+
+  const downloadLink = addBooksIsPdf ? $('pdfDownloadLink').value.trim() : '';
+  const filesToSend = pendingBookFiles.map(pf => Object.assign({}, pf, {
+    isPdf: addBooksIsPdf,
+    downloadLink: downloadLink
+  }));
+
+  const data = await api('addBooks', { files: filesToSend })
     .catch(err => { $('addBooksError').textContent = err.message; throw err; });
 
   $('addBooksSuccess').textContent = data.added.length + ' book(s) added to library.';
   pendingBookFiles = [];
   $('bookFilesInput').value = '';
+  $('pdfDownloadLink').value = '';
   $('addBooksPreview').innerHTML = '';
   $('uploadBooksBtn').disabled = true;
   showToast('Books uploaded!');
@@ -1131,6 +1264,8 @@ let editProfilePendingDp = null;
 $('openEditProfileBtn').onclick = () => {
   editProfilePendingDp = null;
   $('editProfileName').value = currentUser.displayName || '';
+  if ($('editProfileCity')) $('editProfileCity').value = currentUser.city || '';
+  if ($('editProfileArea')) $('editProfileArea').value = currentUser.area || '';
   $('editProfileBio').value = currentUser.bio || '';
   $('editProfileDpPreview').src = driveImg(currentUser.dpFileId);
   $('editProfileModal').classList.remove('hidden');
@@ -1151,10 +1286,12 @@ $('editProfileDpInput').onchange = async () => {
 
 $('editProfileSaveBtn').onclick = (e) => guardedAction('editprofile', e.target, async () => {
   const displayName = $('editProfileName').value.trim();
+  const city = $('editProfileCity') ? $('editProfileCity').value.trim() : '';
+  const area = $('editProfileArea') ? $('editProfileArea').value.trim() : '';
   const bio = $('editProfileBio').value.trim();
   if (!displayName) { showToast('Name cannot be empty.'); return; }
 
-  const payload = { displayName, bio };
+  const payload = { displayName, city, area, bio };
   if (editProfilePendingDp) payload.dpBase64 = editProfilePendingDp;
 
   const data = await api('editProfile', payload);
