@@ -73,8 +73,8 @@
     <!-- LOGIN FORM -->
     <form id="loginForm" class="auth-form">
       <div class="field">
-        <label>Email or WhatsApp number</label>
-        <input type="text" id="loginIdentifier" required autocomplete="username">
+        <label>Email address</label>
+        <input type="email" id="loginIdentifier" required placeholder="your.email@gmail.com" autocomplete="username">
       </div>
       <div class="field">
         <label>Password</label>
@@ -268,22 +268,25 @@
   <div id="bookGrid" class="book-grid"></div>
 </section>
 
-<!-- MEMBERS PAGE -->
+<!-- MEMBERS PAGE (Unified Members & Live Updates #17) -->
 <section id="page-members" class="page hidden">
-  <h2 class="page-title">Members (<span id="membersTotalCount">0</span> Members)</h2>
-  <div class="members-layout">
+  <h2 class="page-title">Community &amp; Activity</h2>
+  <div class="members-subtabs" style="display:flex; gap:8px; margin-bottom:14px;">
+    <button class="chip active" id="membersTabBtn" type="button">Members (<span id="membersTotalCount">0</span>)</button>
+    <button class="chip" id="liveUpdateTabBtn" type="button">📡 Live Activity <span id="liveUpdateRedDot" class="notif-red-dot hidden"></span></button>
+  </div>
+
+  <div id="membersMainSection" class="members-layout">
     <div class="members-main">
       <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
       <div id="membersList" class="member-list"></div>
     </div>
   </div>
-</section>
 
-<!-- LIVE UPDATE PAGE (#15) -->
-<section id="page-liveupdate" class="page hidden">
-  <h2 class="page-title">📡 Live Updates</h2>
-  <p class="form-hint">Real-time activity log across Baitul Hikmah.</p>
-  <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
+  <div id="liveUpdateMainSection" class="hidden">
+    <p class="form-hint" style="margin-bottom:10px;">Real-time activity log across Baitul Hikmah.</p>
+    <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
+  </div>
 </section>
 
 <!-- FEATURED BOOK PAGES (#16) -->
@@ -320,12 +323,8 @@
     <button class="chip" id="typePdfBtn" type="button">PDF Book</button>
   </div>
   <p class="form-hint" id="uploadHintText">
-    Pick photo(s) of physical book covers from your device. Each image is automatically compressed.
+    Pick photo(s) of book covers from your device. Each image is automatically compressed.
   </p>
-  <div id="pdfDownloadLinkWrap" class="field hidden">
-    <label>PDF Download Link (Drive, Dropbox, Direct URL, etc.)</label>
-    <input type="url" id="pdfDownloadLink" placeholder="https://drive.google.com/file/d/...">
-  </div>
   <input type="file" id="bookFilesInput" accept="image/*" multiple>
   <p id="compressStatus" class="form-hint hidden"></p>
   <div id="addBooksPreview" class="add-preview-grid"></div>
@@ -385,7 +384,7 @@
   </div>
 </div>
 
-<!-- FEATURED ZOOM MODAL (FB Stories Style Overlay) (#2) -->
+<!-- FEATURED ZOOM MODAL (FB Stories Style Overlay) (#2 & #16) -->
 <div id="featuredZoomModal" class="modal hidden story-modal-overlay">
   <div class="story-backdrop" id="closeFeaturedZoomBackdrop"></div>
   <div class="story-container">
@@ -405,7 +404,10 @@
     <div class="story-image-wrap">
       <img id="zoomModalImg" src="" alt="Book page image" class="story-img">
     </div>
-    <button id="storyBorrowBtn" class="story-borrow-btn hidden">Borrow</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+      <button id="storyDeleteBtn" class="btn btn-danger hidden" style="font-size:0.8rem; padding:8px 14px;">Delete Excerpt</button>
+      <button id="storyBorrowBtn" class="story-borrow-btn">View / Borrow Book</button>
+    </div>
   </div>
 </div>
 
@@ -504,7 +506,7 @@
   </div>
 </div>
 
-<!-- EDIT PROFILE POPUP (#20) -->
+<!-- EDIT PROFILE POPUP (#20 & #2) -->
 <div id="editProfileModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet small">
@@ -520,6 +522,10 @@
       <input type="text" id="editProfileName">
     </div>
     <div class="field">
+      <label>WhatsApp Number</label>
+      <input type="text" id="editProfileWhatsapp" placeholder="+8801XXXXXXXXX">
+    </div>
+    <div class="field">
       <label>City</label>
       <input type="text" id="editProfileCity" placeholder="e.g. Dhaka">
     </div>
@@ -532,6 +538,16 @@
       <textarea id="editProfileBio" maxlength="300" rows="3" placeholder="Tell other members a little about yourself..."></textarea>
     </div>
     <button id="editProfileSaveBtn" class="btn btn-primary btn-wide">Save changes</button>
+  </div>
+</div>
+
+<!-- MEMBER DETAIL MODAL FOR STAFF (#11) -->
+<div id="memberDetailModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeMemberDetailBtn">&times;</button>
+    <h3>Member Details</h3>
+    <div class="member-detail-body" id="memberDetailContent" style="margin-top:12px;"></div>
   </div>
 </div>
 
@@ -555,7 +571,7 @@
   </div>
 </div>
 
-<!-- BOTTOM NAVIGATION (#15: Order: Explore - Profile - Add - Members - Live Update - Featured) -->
+<!-- BOTTOM NAVIGATION (5 items: Explore - Profile - Add - Members - Featured) -->
 <nav id="bottomNav" class="bottom-nav hidden">
   <button class="nav-btn" data-page="explore">
     <svg viewBox="0 0 24 24"><path d="M4 4h7v16H4zM13 4h7v16h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -573,13 +589,10 @@
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Members</span>
   </button>
-  <button class="nav-btn" data-page="liveupdate">
-    <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>Live Update</span>
-  </button>
   <button class="nav-btn" data-page="featured">
     <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l-3 4h12l-4-5z" fill="currentColor"/></svg>
     <span>Featured</span>
+    <span id="featuredRedDot" class="notif-red-dot hidden"></span>
   </button>
 </nav>
 

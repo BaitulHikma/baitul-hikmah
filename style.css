@@ -119,7 +119,122 @@ a:hover { text-decoration: underline; }
   position: absolute; top: 3px; right: 3px;
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--danger); border: 1.5px solid var(--bg);
+  animation: pop-pulse 1.8s infinite ease-in-out;
 }
+@keyframes pop-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(192, 90, 79, 0.7); }
+  50% { transform: scale(1.3); box-shadow: 0 0 0 6px rgba(192, 90, 79, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(192, 90, 79, 0); }
+}
+.pop-effect {
+  animation: button-pop 0.6s ease-out;
+}
+@keyframes button-pop {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* PERMANENT PDF BADGE */
+.pdf-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(192, 90, 79, 0.92);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* SKELETON PLACEHOLDERS */
+.skeleton-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skeleton-img {
+  width: 100%;
+  aspect-ratio: 3/4;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s infinite;
+}
+.skeleton-text {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s infinite;
+}
+.skeleton-text.short { width: 50%; }
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* FB STORY CARDS FOR FEATURED PAGE */
+.featured-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+.story-card {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.story-card:active { transform: scale(0.97); }
+.story-card-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.story-card-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.65) 0%, transparent 40%, rgba(0,0,0,0.85) 100%);
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 10px;
+}
+.story-card-header {
+  display: flex; align-items: center; gap: 6px;
+}
+.story-card-dp {
+  width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--accent); object-fit: cover; background: var(--surface-2);
+}
+.story-card-name {
+  font-size: 0.72rem; font-weight: 600; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.story-card-footer {
+  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+.story-card-title {
+  font-size: 0.8rem; font-weight: 700; color: var(--accent);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* MEMBER DETAIL MODAL STYLES */
+.member-detail-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;
+}
+.member-detail-label { color: var(--text-dim); }
+.member-detail-val { color: var(--text); font-weight: 600; text-align: right; }
 
 /* PAGE CONTAINERS */
 .page {

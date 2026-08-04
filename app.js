@@ -199,8 +199,14 @@ window.addEventListener('hashchange', () => {
 function renderPage(name) {
   if (!currentUser && name !== 'auth') name = 'auth';
 
-  PAGES.forEach(p => $('page-' + p).classList.toggle('hidden', p !== name));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  PAGES.forEach(p => {
+    const el = $('page-' + p);
+    if (el) el.classList.toggle('hidden', p !== name);
+  });
+
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === name);
+  });
 
   const loggedIn = !!currentUser;
   $('topbar').classList.toggle('hidden', !loggedIn);
@@ -216,8 +222,13 @@ function renderPage(name) {
   if (name === 'profile') refreshProfile();
   if (name === 'explore') refreshBooks();
   if (name === 'members') refreshMembers();
-  if (name === 'liveupdate') refreshFullLiveUpdates();
-  if (name === 'featured') refreshFeaturedPosts();
+  if (name === 'featured') {
+    refreshFeaturedPosts();
+    $('featuredRedDot').classList.add('hidden');
+    if (allFeaturedPosts.length > 0) {
+      localStorage.setItem('bh_seen_featured_id', allFeaturedPosts[0].id);
+    }
+  }
 
   window.scrollTo(0, 0);
 }
@@ -560,16 +571,21 @@ function renderBookGrid() {
     return;
   }
   grid.innerHTML = list.map(b => {
-    const statusText = b.status === 'available'
-      ? 'Available'
-      : 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + escapeHtml(b.borrowerName) : '');
-    const statusClass = b.status === 'available' ? 'available' : 'unavailable';
+    const isPdf = b.isPdf || (b.downloadLink && b.downloadLink.length > 5);
+    const pdfBadge = isPdf ? `<span class="pdf-badge">PDF</span>` : '';
+    const statusText = isPdf
+      ? 'PDF Book'
+      : (b.status === 'available'
+          ? 'Available'
+          : 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + escapeHtml(b.borrowerName) : ''));
+    const statusClass = isPdf ? 'available' : (b.status === 'available' ? 'available' : 'unavailable');
     const pageBadge = b.pageCount ? `<div class="page-count-badge">${escapeHtml(String(b.pageCount))}p</div>` : '';
     const hiddenBadge = (isStaff && b.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
 
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
-      <div class="book-cover-wrap">
+      <div class="book-cover-wrap" style="position:relative;">
         <img src="${driveImg(b.imageFileId)}" alt="">
+        ${pdfBadge}
         ${pageBadge}
       </div>
       <div class="book-card-body">
@@ -603,14 +619,18 @@ window.openBookModal = (bookId) => {
       locEl.classList.toggle('hidden', !locationText);
     }
 
+    const isPdfBook = b.isPdf || (b.downloadLink && b.downloadLink.length > 5);
     const pdfBtn = $('modalDownloadPdfBtn');
     if (pdfBtn) {
-      const isPdfBook = b.isPdf || (b.downloadLink && b.downloadLink.length > 5);
       pdfBtn.classList.toggle('hidden', !isPdfBook);
-      if (isPdfBook && b.downloadLink) {
-        pdfBtn.href = b.downloadLink;
+      if (isPdfBook) {
+        pdfBtn.href = b.downloadLink || '#';
         pdfBtn.onclick = () => {
-          api('logPdfDownload', { bookId: b.bookId }).catch(() => {});
+          if (b.downloadLink) {
+            api('logPdfDownload', { bookId: b.bookId }).catch(() => {});
+          } else {
+            showToast('PDF download link not provided by owner.');
+          }
         };
       }
     }
@@ -637,6 +657,8 @@ function renderModalStatusArea(b) {
   waBtn.classList.add('disabled');
   waBtn.removeAttribute('href');
 
+  const isPdfBook = b.isPdf || (b.downloadLink && b.downloadLink.length > 5);
+
   if (currentUser && currentUser.isStaff) {
     hideBtn.classList.remove('hidden');
     hideBtn.textContent = b.hidden ? 'Unhide this book' : 'Hide this book';
@@ -646,10 +668,15 @@ function renderModalStatusArea(b) {
 
   if (b.isMine) {
     editIcon.classList.remove('hidden');
-    statusEl.textContent = b.status === 'available'
-      ? 'This is your book — available.'
-      : 'Currently lent out' + (b.borrowerName ? ' to ' + b.borrowerName : '') + ' — due ' + formatDate(b.dueDate);
+    statusEl.textContent = isPdfBook
+      ? 'This is your PDF book.'
+      : (b.status === 'available'
+          ? 'This is your book — available.'
+          : 'Currently lent out' + (b.borrowerName ? ' to ' + b.borrowerName : '') + ' — due ' + formatDate(b.dueDate));
     deleteBtn.classList.remove('hidden');
+  } else if (isPdfBook) {
+    statusEl.textContent = 'Digital PDF edition available for instant download.';
+    // PDF books do NOT have "Request to borrow"
   } else if (b.status !== 'available') {
     statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + b.borrowerName : '');
   } else if (b.myPendingRequestId) {
@@ -762,12 +789,31 @@ $('modalEditIconBtn').onclick = () => {
 // MEMBERS PAGE
 let lastMembersData = null;
 
+if ($('membersTabBtn')) {
+  $('membersTabBtn').onclick = () => {
+    $('membersTabBtn').classList.add('active');
+    $('liveUpdateTabBtn').classList.remove('active');
+    $('membersMainSection').classList.remove('hidden');
+    $('liveUpdateMainSection').classList.add('hidden');
+  };
+}
+if ($('liveUpdateTabBtn')) {
+  $('liveUpdateTabBtn').onclick = () => {
+    $('liveUpdateTabBtn').classList.add('active');
+    $('membersTabBtn').classList.remove('active');
+    $('liveUpdateMainSection').classList.remove('hidden');
+    $('membersMainSection').classList.add('hidden');
+    if ($('liveUpdateRedDot')) $('liveUpdateRedDot').classList.add('hidden');
+    refreshFullLiveUpdates();
+  };
+}
+
 function renderMembersUI(data) {
   allMembers = data.members || [];
   const isStaff = currentUser && currentUser.isStaff;
 
   const totalEl = $('membersTotalCount');
-  if (totalEl) totalEl.textContent = 'Total: ' + (data.totalMembersCount || allMembers.length) + ' member' + ((data.totalMembersCount || allMembers.length) === 1 ? '' : 's');
+  if (totalEl) totalEl.textContent = (data.totalMembersCount || allMembers.length);
 
   // Filter hidden users for non-staff members (#11)
   const visibleMembers = allMembers.filter(m => !m.hidden || isStaff);
@@ -785,20 +831,62 @@ function renderMembersUI(data) {
     const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
     const isSelf = currentUser && String(m.id) === String(currentUser.id);
     const hiddenTag = (isStaff && m.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
+    const clickHandler = isStaff ? `onclick="openMemberDetailModal('${m.id}')" style="cursor:pointer;"` : '';
+    const statsText = (m.ownedBooks != null) ? `Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}` : `Role: ${m.role || 'Member'}`;
+
     return `
-    <div class="member-card">
+    <div class="member-card" ${clickHandler}>
       <div class="dp-wrap">
         <img src="${driveImg(m.dpFileId)}" alt="">
-        <span class="level-badge" title="Level ${m.level}">Lv ${m.level}</span>
+        <span class="level-badge" title="Level ${m.level}">Lv ${m.level || 1}</span>
       </div>
       <div class="member-body">
-        <div class="name">${escapeHtml(m.displayName)}${hiddenTag}</div>
+        <div class="name">${escapeHtml(m.displayName || m.name)}${hiddenTag}</div>
         ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
-        <div class="stats">Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}</div>
+        <div class="stats">${statsText}</div>
       </div>
-      ${isSelf ? '' : `<button class="salam-btn ${cooldownActive ? 'faded' : ''}" ${cooldownActive ? 'disabled' : ''} onclick="sendSalam(this,'${m.id}')">Send Salam!</button>`}
+      ${isSelf ? '' : `<button class="salam-btn ${cooldownActive ? 'faded' : ''}" ${cooldownActive ? 'disabled' : ''} onclick="event.stopPropagation(); sendSalam(this,'${m.id}')">Send Salam!</button>`}
     </div>`;
   }).join('');
+}
+
+window.openMemberDetailModal = (memberId) => {
+  const m = allMembers.find(x => x.id === memberId) || (lastStaffPanelData && lastStaffPanelData.members && lastStaffPanelData.members.find(x => x.id === memberId));
+  if (!m) return;
+  const content = $('memberDetailContent');
+  if (!content) return;
+
+  const isStaff = currentUser && currentUser.isStaff;
+  const isAdmin = currentUser && currentUser.isAdmin;
+
+  content.innerHTML = `
+    <div style="text-align:center; margin-bottom:12px;">
+      <img src="${driveImg(m.dpFileId)}" style="width:70px; height:70px; border-radius:50%; object-fit:cover; border:2px solid var(--accent); margin:0 auto;">
+      <h4 style="margin:8px 0 2px;">${escapeHtml(m.displayName || m.name)}</h4>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:0;">ID: ${escapeHtml(m.id)}</p>
+    </div>
+    <div class="member-detail-row"><span class="member-detail-label">Email:</span><span class="member-detail-val">${escapeHtml(m.email || '—')}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">WhatsApp:</span><span class="member-detail-val">${escapeHtml(m.whatsapp || '—')}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">City:</span><span class="member-detail-val">${escapeHtml(m.city || '—')}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">Near Area:</span><span class="member-detail-val">${escapeHtml(m.area || '—')}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">Bio:</span><span class="member-detail-val">${escapeHtml(m.bio || '—')}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">Reference:</span><span class="member-detail-val">${escapeHtml(m.reference || '—')}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">Joined:</span><span class="member-detail-val">${formatDate(m.joinedAt) || '—'}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">Role:</span><span class="member-detail-val">${m.role ? m.role.toUpperCase() : 'Member'}</span></div>
+    <div class="member-detail-row"><span class="member-detail-label">Status:</span><span class="member-detail-val">${m.hidden ? 'HIDDEN' : 'Active'}</span></div>
+    ${isStaff ? `
+      <div style="margin-top:16px; display:flex; gap:8px;">
+        ${isAdmin ? `<button class="btn btn-secondary btn-wide" onclick="toggleModerator(this,'${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove Mod' : 'Make Mod'}</button>` : ''}
+        <button class="btn btn-ghost btn-wide" onclick="toggleHidden(this,'user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide User' : 'Hide User'}</button>
+      </div>
+    ` : ''}
+  `;
+  if ($('memberDetailModal')) $('memberDetailModal').classList.remove('hidden');
+};
+
+if ($('closeMemberDetailBtn')) $('closeMemberDetailBtn').onclick = () => $('memberDetailModal').classList.add('hidden');
+if ($('memberDetailModal') && $('memberDetailModal').querySelector('.modal-backdrop')) {
+  $('memberDetailModal').querySelector('.modal-backdrop').onclick = () => $('memberDetailModal').classList.add('hidden');
 }
 
 async function refreshMembers() {
@@ -858,16 +946,28 @@ async function refreshFullLiveUpdates() {
   }
 }
 
-// FEATURED BOOK PAGES (#16)
+// FEATURED BOOK PAGES (#16 & #18)
 async function refreshFeaturedPosts() {
   const container = $('featuredGallery');
-  if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">Loading featured posts…</p>';
-  else renderFeaturedGallery();
+  if (!featuredLoadedOnce) {
+    container.innerHTML = `<div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-text"></div></div><div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-text"></div></div>`;
+  } else {
+    renderFeaturedGallery();
+  }
 
   try {
     const data = await api('getFeaturedPosts', {});
     allFeaturedPosts = data.posts || [];
     featuredLoadedOnce = true;
+
+    // Check for unread featured posts for dot indicator
+    const lastSeenId = localStorage.getItem('bh_seen_featured_id');
+    if (allFeaturedPosts.length > 0 && allFeaturedPosts[0].id !== lastSeenId) {
+      if (location.hash !== '#featured') {
+        $('featuredRedDot').classList.remove('hidden');
+      }
+    }
+
     renderFeaturedGallery();
   } catch (err) {
     if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">No featured posts yet.</p>';
@@ -907,18 +1007,18 @@ function renderFeaturedGallery() {
   gallery.innerHTML = list.map(p => {
     const posterDp = driveImg(p.posterDpFileId);
     const mainImg = driveImg(p.imageFileId);
-    const coverImg = driveImg(p.bookCoverFileId);
 
     return `
-    <div class="featured-card" onclick="openFeaturedZoomModal('${p.id}')">
-      <div class="featured-card-img-wrap">
-        <img src="${mainImg}" alt="">
-        <img class="featured-card-overlay-dp" src="${posterDp}" alt="" title="Posted by ${escapeHtml(p.memberName)}">
-        <img class="featured-card-overlay-cover" src="${coverImg}" alt="" title="${escapeHtml(p.bookName)}">
-      </div>
-      <div class="featured-card-body">
-        <div class="featured-book-title">${escapeHtml(p.bookName || 'Featured Excerpt')}</div>
-        <div class="featured-post-owner">By ${escapeHtml(p.memberName || 'Member')}</div>
+    <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
+      <img class="story-card-img" src="${mainImg}" alt="">
+      <div class="story-card-overlay">
+        <div class="story-card-header">
+          <img class="story-card-dp" src="${posterDp}" alt="">
+          <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}</span>
+        </div>
+        <div class="story-card-footer">
+          <div class="story-card-title">${escapeHtml(p.bookName || 'Excerpt')}</div>
+        </div>
       </div>
     </div>
   `;
@@ -947,8 +1047,25 @@ window.openFeaturedZoomModal = (postId) => {
   const imgEl = $('zoomModalImg') || $('storyZoomImg');
   if (imgEl) imgEl.src = mainImg;
 
+  const deleteBtn = $('storyDeleteBtn');
+  if (deleteBtn) {
+    const canDel = p.canDelete || (currentUser && (currentUser.isStaff || String(p.memberId) === String(currentUser.id)));
+    deleteBtn.classList.toggle('hidden', !canDel);
+    deleteBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (!confirm('Delete this featured post excerpt?')) return;
+      guardedAction('delfeature-' + p.id, deleteBtn, async () => {
+        if ($('featuredZoomModal')) $('featuredZoomModal').classList.add('hidden');
+        await api('deleteFeaturedPost', { postId: p.id }).catch(err => { refreshFeaturedPosts(); throw err; });
+        showToast('Featured post deleted.');
+        refreshFeaturedPosts();
+      });
+    };
+  }
+
   const borrowBtn = $('storyBorrowBtn');
   if (borrowBtn) {
+    borrowBtn.textContent = p.isPdf ? 'Download PDF' : 'View / Borrow Book';
     borrowBtn.onclick = (e) => {
       e.stopPropagation();
       if ($('featuredZoomModal')) $('featuredZoomModal').classList.add('hidden');
@@ -1264,6 +1381,7 @@ let editProfilePendingDp = null;
 $('openEditProfileBtn').onclick = () => {
   editProfilePendingDp = null;
   $('editProfileName').value = currentUser.displayName || '';
+  if ($('editProfileWhatsapp')) $('editProfileWhatsapp').value = currentUser.whatsapp || '';
   if ($('editProfileCity')) $('editProfileCity').value = currentUser.city || '';
   if ($('editProfileArea')) $('editProfileArea').value = currentUser.area || '';
   $('editProfileBio').value = currentUser.bio || '';
@@ -1286,12 +1404,13 @@ $('editProfileDpInput').onchange = async () => {
 
 $('editProfileSaveBtn').onclick = (e) => guardedAction('editprofile', e.target, async () => {
   const displayName = $('editProfileName').value.trim();
+  const whatsapp = $('editProfileWhatsapp') ? $('editProfileWhatsapp').value.trim() : '';
   const city = $('editProfileCity') ? $('editProfileCity').value.trim() : '';
   const area = $('editProfileArea') ? $('editProfileArea').value.trim() : '';
   const bio = $('editProfileBio').value.trim();
   if (!displayName) { showToast('Name cannot be empty.'); return; }
 
-  const payload = { displayName, city, area, bio };
+  const payload = { displayName, whatsapp, city, area, bio };
   if (editProfilePendingDp) payload.dpBase64 = editProfilePendingDp;
 
   const data = await api('editProfile', payload);
@@ -1395,6 +1514,12 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('seth
   const startHash = (location.hash || '').slice(1);
   if (currentUser) {
     renderPage(PAGES.includes(startHash) ? startHash : 'profile');
+    // Silent background pre-fetching
+    setTimeout(() => {
+      refreshBooks();
+      refreshFeaturedPosts();
+      checkNotifRedDot();
+    }, 100);
   } else {
     showAuthTab('loginForm');
     renderPage('auth');
