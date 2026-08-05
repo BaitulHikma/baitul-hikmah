@@ -221,7 +221,10 @@ function renderPage(name) {
 
   if (name === 'profile') refreshProfile();
   if (name === 'explore') refreshBooks();
-  if (name === 'members') refreshMembers();
+  if (name === 'members') {
+    refreshMembers();
+    refreshFullLiveUpdates();
+  }
   if (name === 'featured') {
     refreshFeaturedPosts();
     $('featuredRedDot').classList.add('hidden');
