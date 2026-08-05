@@ -1105,30 +1105,25 @@ function renderFeaturedGallery() {
   gallery.innerHTML = list.map(p => {
     const posterDp = driveImg(p.posterDpFileId);
     const mainImg = driveImg(p.imageFileId);
-    const coverThumb = p.bookCoverFileId ? driveImg(p.bookCoverFileId) : '';
-    const caption = p.caption || '';
-    const isLongCaption = caption.length > 80;
-    const captionPreview = isLongCaption ? caption.slice(0, 80) + '...' : caption;
+    const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
+    const coverThumb = coverFileId ? driveImg(coverFileId) : '';
 
     return `
-    <div class="featured-post-card" onclick="openFeaturedZoomModal('${p.id}')">
-      <div class="featured-post-header">
-        <img class="featured-post-dp" src="${posterDp}" alt="">
-        <div class="featured-post-user-info">
-          <span class="featured-post-name">${escapeHtml(p.memberName || 'Member')}</span>
-          <span class="featured-post-time">${timeAgo(p.createdAt)}</span>
+    <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
+      <img class="story-card-img" src="${mainImg}" alt="">
+      <div class="story-card-overlay">
+        <div class="story-card-header">
+          <img class="story-card-dp" src="${posterDp}" alt="">
+          <div class="story-card-user-info">
+            <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}</span>
+            <span class="story-card-time">${timeAgo(p.createdAt)}</span>
+          </div>
+        </div>
+        <div class="story-card-footer">
+          ${coverThumb ? `<img class="story-card-book-cover" src="${coverThumb}" alt="" title="${escapeHtml(p.bookName || '')}">` : ''}
+          <div class="story-card-title">${escapeHtml(p.bookName || 'Excerpt')}</div>
         </div>
       </div>
-      <div class="featured-post-img-wrap">
-        <img class="featured-post-main-img" src="${mainImg}" alt="">
-        ${coverThumb ? `<img class="featured-post-cover-thumb" src="${coverThumb}" alt="" title="${escapeHtml(p.bookName || '')}">` : ''}
-        <div class="featured-post-book-name">${escapeHtml(p.bookName || 'Excerpt')}</div>
-      </div>
-      ${caption ? `
-      <div class="featured-post-caption-box">
-        <span class="caption-text">${escapeHtml(captionPreview)}</span>
-        ${isLongCaption ? `<button type="button" class="story-caption-toggle" onclick="event.stopPropagation(); toggleCardCaption(this, '${p.id}')">See more</button>` : ''}
-      </div>` : ''}
     </div>
   `;
   }).join('');
@@ -1162,22 +1157,26 @@ window.openFeaturedZoomModal = (postId) => {
   const captionToggle = $('storyCaptionToggleBtn');
 
   if (captionWrap && captionText) {
-    if (p.caption) {
+    const captionVal = (p.caption || p.Caption || '').trim();
+    if (captionVal) {
       captionWrap.classList.remove('hidden');
-      const fullText = p.caption;
-      const shortText = fullText.length > 90 ? fullText.slice(0, 90) + '...' : fullText;
-      captionText.textContent = shortText;
+      captionText.textContent = captionVal;
+      captionText.classList.add('clamp-2');
 
       if (captionToggle) {
-        if (fullText.length > 90) {
+        if (captionVal.length > 40) {
           captionToggle.classList.remove('hidden');
           captionToggle.textContent = 'See more';
-          let expanded = false;
           captionToggle.onclick = (e) => {
             e.stopPropagation();
-            expanded = !expanded;
-            captionText.textContent = expanded ? fullText : shortText;
-            captionToggle.textContent = expanded ? 'See less' : 'See more';
+            const isClamped = captionText.classList.contains('clamp-2');
+            if (isClamped) {
+              captionText.classList.remove('clamp-2');
+              captionToggle.textContent = 'See less';
+            } else {
+              captionText.classList.add('clamp-2');
+              captionToggle.textContent = 'See more';
+            }
           };
         } else {
           captionToggle.classList.add('hidden');
@@ -1190,8 +1189,11 @@ window.openFeaturedZoomModal = (postId) => {
 
   const deleteBtn = $('storyDeleteBtn');
   if (deleteBtn) {
-    const canDel = p.canDelete || (currentUser && (currentUser.isStaff || String(p.memberId) === String(currentUser.id)));
-    deleteBtn.classList.toggle('hidden', !canDel);
+    const isOwner = !!(currentUser && (
+      (p.memberId && currentUser.id && String(p.memberId) === String(currentUser.id)) ||
+      (p.memberName && currentUser.displayName && String(p.memberName).toLowerCase() === String(currentUser.displayName).toLowerCase())
+    ));
+    deleteBtn.classList.toggle('hidden', !isOwner);
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
       if (!confirm('Delete this featured post excerpt?')) return;
@@ -1741,7 +1743,8 @@ function triggerAppInstall() {
             <li style="margin-bottom:8px;">Scroll down in the menu and tap <b>"Add to Home Screen"</b> <span style="font-size:1.1rem; vertical-align:middle;">➕</span>.</li>
             <li>Tap <b>"Add"</b> in the top right corner.</li>
           </ol>
-          <p style="font-size:0.78rem; color:var(--text-dim); margin:8px 0 0 0; font-style:italic;">Note: Make sure you open this site in <b>Safari</b> on iOS to install.</p>
+          <p style="font-size:0.78rem; color:var(--text-dim); margin:8px 0 12px 0; font-style:italic;">Note: Make sure you open this site in <b>Safari</b> on iOS to install.</p>
+          <button id="copyAppLinkBtn" type="button" class="btn btn-ghost btn-wide" style="font-size:0.8rem; padding:8px;">🔗 Copy Direct Web App Link</button>
         </div>
       `;
     } else {
@@ -1753,10 +1756,22 @@ function triggerAppInstall() {
             <li style="margin-bottom:8px;">Tap <b>"Install app"</b> or <b>"Add to Home screen"</b>.</li>
             <li>Confirm by tapping <b>"Install"</b> or <b>"Add"</b>.</li>
           </ol>
+          <button id="copyAppLinkBtn" type="button" class="btn btn-ghost btn-wide" style="font-size:0.8rem; padding:8px; margin-top:8px;">🔗 Copy Direct Web App Link</button>
         </div>
       `;
     }
     modal.classList.remove('hidden');
+
+    const copyBtn = $('copyAppLinkBtn');
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+          showToast('App link copied to clipboard!');
+        }).catch(() => {
+          showToast('App URL: ' + window.location.href);
+        });
+      };
+    }
   } else {
     if (isIos) {
       showToast('To install on iPhone: tap Share ⎋ -> "Add to Home Screen"');
