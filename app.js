@@ -356,13 +356,14 @@ async function refreshProfile() {
     const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
     setTxt('profileIdNum', data.profile.id);
     setTxt('profileDisplayName', data.profile.displayName);
-    setTxt('profileGreeting', "Assalamu a'laikum, " + data.profile.displayName + "! 👋");
+    const firstName = (data.profile.displayName || '').split(' ')[0] || data.profile.displayName;
+    setTxt('profileGreeting', "Assalamu a'laikum, " + firstName + "! 👋");
     setSrc('profileDpImg', driveImg(data.profile.dpFileId));
     setTxt('profileLevelBadge', 'Lv ' + data.profile.level);
 
     const bioEl = $('profileBioLine');
     if (bioEl) {
-      bioEl.textContent = data.profile.bio || 'No bio added yet.';
+      bioEl.textContent = data.profile.bio || 'BIO........';
       bioEl.classList.toggle('hidden', false);
     }
 
@@ -586,8 +587,10 @@ function renderBookGrid() {
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
       <div class="book-cover-wrap" style="position:relative;">
         <img src="${driveImg(b.imageFileId)}" alt="">
-        ${pdfBadge}
-        ${pageBadge}
+        <div class="book-cover-badges">
+          ${pageBadge}
+          ${pdfBadge}
+        </div>
       </div>
       <div class="book-card-body">
         <div class="name">${escapeHtml(b.bookName || 'Untitled')}${hiddenBadge}</div>

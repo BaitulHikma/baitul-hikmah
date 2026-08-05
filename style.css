@@ -137,10 +137,7 @@ a:hover { text-decoration: underline; }
 
 /* PERMANENT PDF BADGE */
 .pdf-badge {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  background: rgba(192, 90, 79, 0.92);
+  background: rgba(192, 90, 79, 0.95);
   color: #ffffff;
   font-size: 0.62rem;
   font-weight: 700;
@@ -148,8 +145,7 @@ a:hover { text-decoration: underline; }
   border-radius: 4px;
   letter-spacing: 0.04em;
   box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-  z-index: 5;
-  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* SKELETON PLACEHOLDERS */
@@ -325,53 +321,60 @@ a:hover { text-decoration: underline; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 20px 18px 18px;
   margin-bottom: 16px;
 }
 .profile-header-top-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 .profile-info-block {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .profile-display-name {
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: 1.55rem;
   font-weight: 700;
   color: #ffffff;
-  margin: 0 0 4px 0;
+  margin: 0 0 3px 0;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .profile-bio {
-  color: #b0b0b0;
-  font-size: 0.82rem;
-  line-height: 1.3;
+  color: #a0a0a0;
+  font-size: 0.88rem;
+  line-height: 1.35;
   margin: 0 0 4px 0;
   word-break: break-word;
 }
 .id-tag {
   color: var(--accent);
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   margin: 0;
+  font-family: var(--font-body);
 }
 .profile-banner-row {
   text-align: center;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--border);
+  margin-top: 18px;
+  padding-top: 0;
+  border-top: none;
 }
 .profile-greeting-text {
   font-family: var(--font-display);
   color: var(--accent);
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   font-weight: 700;
   margin: 0;
+  text-align: center;
 }
 
 /* FEATURED POST CARDS (DIAGRAM 2) */
@@ -522,22 +525,36 @@ a:hover { text-decoration: underline; }
   margin: 0;
 }
 .profile-dp-wrap {
-  position: relative; width: 72px; height: 72px; margin: 0;
+  position: relative;
+  width: 78px;
+  height: 78px;
+  margin: 0;
+  flex-shrink: 0;
   cursor: pointer;
 }
 .profile-dp-wrap img {
-  width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
-  background: var(--surface-2); border: 2px solid var(--accent-dim);
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 2px solid var(--accent);
 }
 .profile-dp-wrap .dp-edit-pen {
-  position: absolute; bottom: -2px; right: -2px;
-  background: var(--accent); color: #1a1406;
-  width: 22px; height: 22px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  border: 2px solid var(--bg);
+  position: absolute;
+  bottom: 0px;
+  right: -3px;
+  background: var(--accent);
+  color: #1a1406;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--bg);
 }
 .profile-dp-wrap .dp-edit-pen svg { width: 12px; height: 12px; }
-.profile-bio { color: var(--text-dim); font-size: 0.8rem; margin: 6px auto 0; max-width: 320px; }
 
 .level-badge {
   background: var(--accent); color: #1a1406;
@@ -546,7 +563,20 @@ a:hover { text-decoration: underline; }
   position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
   white-space: nowrap; border: 2px solid var(--bg);
 }
-#profileLevelBadge { top: auto; bottom: -2px; left: -6px; transform: none; }
+#profileLevelBadge {
+  top: auto;
+  bottom: 0px;
+  left: -4px;
+  transform: none;
+  background: var(--accent);
+  color: #1a1406;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1.5px solid var(--bg);
+  white-space: nowrap;
+}
 
 .cube-row { display: flex; gap: 12px; margin-bottom: 12px; }
 .cube {
@@ -653,11 +683,27 @@ a:hover { text-decoration: underline; }
 }
 .book-card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; background: var(--surface-2); }
 .book-cover-wrap { position: relative; }
+.book-cover-badges {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 5;
+  pointer-events: none;
+}
 .page-count-badge {
-  position: absolute; top: 6px; right: 6px;
-  background: rgba(10, 15, 13, 0.78); color: #fff;
-  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.02em;
-  padding: 2px 6px; border-radius: 20px; backdrop-filter: blur(2px);
+  background: rgba(10, 15, 13, 0.85);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: 20px;
+  backdrop-filter: blur(2px);
+  white-space: nowrap;
 }
 .book-card-body { padding: 8px 10px; }
 .book-card-body .name { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
