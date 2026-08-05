@@ -978,14 +978,16 @@ async function refreshFeaturedPosts() {
 $('featuredSearch').oninput = () => renderFeaturedGallery();
 $('featuredSort').onchange = () => renderFeaturedGallery();
 
-window.toggleCardCaption = (btn, fullText, previewText) => {
+window.toggleCardCaption = (btn, postId) => {
+  const p = allFeaturedPosts.find(x => x.id === postId);
+  if (!p || !p.caption) return;
   const box = btn.parentElement;
   const textSpan = box.querySelector('.caption-text');
   if (btn.textContent === 'See more') {
-    textSpan.textContent = fullText;
+    textSpan.textContent = p.caption;
     btn.textContent = 'See less';
   } else {
-    textSpan.textContent = previewText;
+    textSpan.textContent = p.caption.slice(0, 80) + '...';
     btn.textContent = 'See more';
   }
 };
@@ -1042,7 +1044,7 @@ function renderFeaturedGallery() {
       ${caption ? `
       <div class="featured-post-caption-box">
         <span class="caption-text">${escapeHtml(captionPreview)}</span>
-        ${isLongCaption ? `<button type="button" class="story-caption-toggle" onclick="event.stopPropagation(); toggleCardCaption(this, '${escapeHtml(caption).replace(/'/g, "\\'")}', '${escapeHtml(captionPreview).replace(/'/g, "\\')}')">See more</button>` : ''}
+        ${isLongCaption ? `<button type="button" class="story-caption-toggle" onclick="event.stopPropagation(); toggleCardCaption(this, '${p.id}')">See more</button>` : ''}
       </div>` : ''}
     </div>
   `;
