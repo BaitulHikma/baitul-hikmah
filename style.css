@@ -373,10 +373,184 @@ a:hover { text-decoration: underline; }
   padding: 16px;
   margin-bottom: 16px;
 }
-.profile-header-top {
+.profile-header-top-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 14px;
+}
+.profile-info-block {
+  flex: 1;
+  min-width: 0;
+}
+.profile-display-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-bio {
+  color: #b0b0b0;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  margin: 0 0 4px 0;
+  word-break: break-word;
+}
+.id-tag {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin: 0;
+}
+.profile-banner-row {
+  text-align: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.profile-greeting-text {
+  font-family: var(--font-display);
+  color: var(--accent);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* PDF BADGE POSITIONING */
+.pdf-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: #e63946;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  z-index: 3;
+}
+
+/* FEATURED POST CARDS (DIAGRAM 2) */
+.featured-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+.featured-post-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.featured-post-card:active {
+  transform: scale(0.98);
+}
+.featured-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.featured-post-dp {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--accent);
+  background: var(--surface-2);
+}
+.featured-post-user-info {
+  display: flex;
+  flex-direction: column;
+}
+.featured-post-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+.featured-post-time {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.featured-post-img-wrap {
+  position: relative;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.featured-post-main-img {
+  width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  display: block;
+}
+.featured-post-cover-thumb {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 20%;
+  max-width: 65px;
+  aspect-ratio: 2/3;
+  border-radius: 6px;
+  opacity: 0.4;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.featured-post-book-name {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 80px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.featured-post-caption-box {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.4;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* STORY / FEATURED ZOOM CAPTION */
+.story-caption-wrap {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.story-caption-text {
+  color: #e0e0e0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0;
+}
+.story-caption-toggle {
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 0 0 0;
 }
 
 /* Subtle, refined success stats in top corner (#17) */
