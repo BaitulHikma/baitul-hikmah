@@ -355,15 +355,14 @@ async function refreshProfile() {
     const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
     const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
     setTxt('profileIdNum', data.profile.id);
-    setTxt('profileDisplayName', data.profile.displayName);
     setTxt('profileGreeting', "Assalamu a'laikum, " + data.profile.displayName + "! 👋");
     setSrc('profileDpImg', driveImg(data.profile.dpFileId));
     setTxt('profileLevelBadge', 'Lv ' + data.profile.level);
 
     const bioEl = $('profileBioLine');
     if (bioEl) {
-      bioEl.textContent = data.profile.bio || 'No bio added yet.';
-      bioEl.classList.toggle('hidden', false);
+      bioEl.textContent = data.profile.bio || '';
+      bioEl.classList.toggle('hidden', !data.profile.bio);
     }
 
     setTxt('totalSuccessfulBorrows', data.totalSuccessfulBorrows || 0);
@@ -978,20 +977,6 @@ async function refreshFeaturedPosts() {
 $('featuredSearch').oninput = () => renderFeaturedGallery();
 $('featuredSort').onchange = () => renderFeaturedGallery();
 
-window.toggleCardCaption = (btn, postId) => {
-  const p = allFeaturedPosts.find(x => x.id === postId);
-  if (!p || !p.caption) return;
-  const box = btn.parentElement;
-  const textSpan = box.querySelector('.caption-text');
-  if (btn.textContent === 'See more') {
-    textSpan.textContent = p.caption;
-    btn.textContent = 'See less';
-  } else {
-    textSpan.textContent = p.caption.slice(0, 80) + '...';
-    btn.textContent = 'See more';
-  }
-};
-
 function renderFeaturedGallery() {
   const q = $('featuredSearch').value.trim().toLowerCase();
   const sort = $('featuredSort').value;
@@ -1022,30 +1007,19 @@ function renderFeaturedGallery() {
   gallery.innerHTML = list.map(p => {
     const posterDp = driveImg(p.posterDpFileId);
     const mainImg = driveImg(p.imageFileId);
-    const coverThumb = p.bookCoverFileId ? driveImg(p.bookCoverFileId) : '';
-    const caption = p.caption || '';
-    const isLongCaption = caption.length > 80;
-    const captionPreview = isLongCaption ? caption.slice(0, 80) + '...' : caption;
 
     return `
-    <div class="featured-post-card" onclick="openFeaturedZoomModal('${p.id}')">
-      <div class="featured-post-header">
-        <img class="featured-post-dp" src="${posterDp}" alt="">
-        <div class="featured-post-user-info">
-          <span class="featured-post-name">${escapeHtml(p.memberName || 'Member')}</span>
-          <span class="featured-post-time">${timeAgo(p.createdAt)}</span>
+    <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
+      <img class="story-card-img" src="${mainImg}" alt="">
+      <div class="story-card-overlay">
+        <div class="story-card-header">
+          <img class="story-card-dp" src="${posterDp}" alt="">
+          <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}</span>
+        </div>
+        <div class="story-card-footer">
+          <div class="story-card-title">${escapeHtml(p.bookName || 'Excerpt')}</div>
         </div>
       </div>
-      <div class="featured-post-img-wrap">
-        <img class="featured-post-main-img" src="${mainImg}" alt="">
-        ${coverThumb ? `<img class="featured-post-cover-thumb" src="${coverThumb}" alt="" title="${escapeHtml(p.bookName || '')}">` : ''}
-        <div class="featured-post-book-name">${escapeHtml(p.bookName || 'Excerpt')}</div>
-      </div>
-      ${caption ? `
-      <div class="featured-post-caption-box">
-        <span class="caption-text">${escapeHtml(captionPreview)}</span>
-        ${isLongCaption ? `<button type="button" class="story-caption-toggle" onclick="event.stopPropagation(); toggleCardCaption(this, '${p.id}')">See more</button>` : ''}
-      </div>` : ''}
     </div>
   `;
   }).join('');
@@ -1072,38 +1046,6 @@ window.openFeaturedZoomModal = (postId) => {
 
   const imgEl = $('zoomModalImg') || $('storyZoomImg');
   if (imgEl) imgEl.src = mainImg;
-
-  // Render Caption in Zoom Modal
-  const captionWrap = $('storyCaptionWrap');
-  const captionText = $('storyCaptionText');
-  const captionToggle = $('storyCaptionToggleBtn');
-
-  if (captionWrap && captionText) {
-    if (p.caption) {
-      captionWrap.classList.remove('hidden');
-      const fullText = p.caption;
-      const shortText = fullText.length > 90 ? fullText.slice(0, 90) + '...' : fullText;
-      captionText.textContent = shortText;
-
-      if (captionToggle) {
-        if (fullText.length > 90) {
-          captionToggle.classList.remove('hidden');
-          captionToggle.textContent = 'See more';
-          let expanded = false;
-          captionToggle.onclick = (e) => {
-            e.stopPropagation();
-            expanded = !expanded;
-            captionText.textContent = expanded ? fullText : shortText;
-            captionToggle.textContent = expanded ? 'See less' : 'See more';
-          };
-        } else {
-          captionToggle.classList.add('hidden');
-        }
-      }
-    } else {
-      captionWrap.classList.add('hidden');
-    }
-  }
 
   const deleteBtn = $('storyDeleteBtn');
   if (deleteBtn) {
@@ -1148,7 +1090,6 @@ if ($('openPostFeaturedBtn')) {
     if ($('selectedFeaturedBookId')) $('selectedFeaturedBookId').value = '';
     if ($('selectedFeaturedBookLabel')) $('selectedFeaturedBookLabel').textContent = '';
     if ($('featuredBookSearch')) $('featuredBookSearch').value = '';
-    if ($('featuredCaptionInput')) $('featuredCaptionInput').value = '';
     if ($('featuredBookSearchResults')) $('featuredBookSearchResults').innerHTML = '';
     if ($('postFeaturedError')) $('postFeaturedError').textContent = '';
     if ($('confirmPostFeaturedBtn')) $('confirmPostFeaturedBtn').disabled = true;
@@ -1224,14 +1165,11 @@ $('confirmPostFeaturedBtn').onclick = (e) => guardedAction('postfeatured', e.tar
   if (!pendingFeaturedImageB64 || !selectedFeaturedBook) return;
   $('postFeaturedError').textContent = '';
 
-  const caption = $('featuredCaptionInput') ? $('featuredCaptionInput').value.trim() : '';
-
   await api('addFeaturedPost', {
     imageBase64: pendingFeaturedImageB64,
     bookId: selectedFeaturedBook.bookId,
     bookName: selectedFeaturedBook.bookName,
-    writer: selectedFeaturedBook.writer,
-    caption: caption
+    writer: selectedFeaturedBook.writer
   }).catch(err => { $('postFeaturedError').textContent = err.message; throw err; });
 
   $('postFeaturedModal').classList.add('hidden');
