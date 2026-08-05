@@ -271,26 +271,33 @@
   <div id="bookGrid" class="book-grid"></div>
 </section>
 
-<!-- MEMBERS PAGE (Unified Members & Live Updates) -->
-<section id="page-members" class="page page-wide hidden">
+<!-- MEMBERS PAGE -->
+<section id="page-members" class="page hidden">
   <h2 class="page-title">Community &amp; Activity</h2>
 
-  <div class="members-live-grid">
-    <div id="membersMainSection" class="members-layout">
-      <h3 class="members-section-subtitle">
-        👥 Members (<span id="membersTotalCount">0</span>)
-      </h3>
-      <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
-      <div id="membersList" class="member-list"></div>
+  <div class="members-single-column">
+    <h3 class="members-section-subtitle">
+      👥 Members ( <span id="membersTotalCount">0</span> )
+    </h3>
+    
+    <!-- Leaderboard Banner -->
+    <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
+
+    <!-- Live Activity Feed (placed right after leaderboard before members) -->
+    <div id="liveUpdateMainSection" class="live-update-card">
+      <div class="live-update-header">
+        <h4 class="live-update-title">
+          📡 Live Activity Feed
+        </h4>
+      </div>
+      <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
+      <div id="liveUpdateToggleWrap" class="live-update-toggle-wrap hidden">
+        <button id="liveUpdateToggleBtn" type="button" class="live-update-toggle-btn">Show more ▾</button>
+      </div>
     </div>
 
-    <div id="liveUpdateMainSection" class="live-update-section">
-      <h3 class="live-update-title">
-        📡 Live Activity Feed
-      </h3>
-      <p class="form-hint live-update-hint">Real-time updates across Baitul Hikmah.</p>
-      <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
-    </div>
+    <!-- Member List -->
+    <div id="membersList" class="member-list"></div>
   </div>
 </section>
 
