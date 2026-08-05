@@ -1697,25 +1697,93 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
   if (!isStandalone && !localStorage.getItem('bh_install_dismissed')) {
-    $('installBanner').classList.remove('hidden');
+    const banner = $('installBanner');
+    if (banner) banner.classList.remove('hidden');
   }
 });
 
 if (isIos && !isStandalone && !localStorage.getItem('bh_install_dismissed')) {
-  $('installBannerText').textContent = 'Add Baitul Hikmah to your Home Screen: tap Share, then "Add to Home Screen".';
-  $('installBannerBtn').textContent = 'Got it';
-  $('installBanner').classList.remove('hidden');
+  const bannerText = $('installBannerText');
+  const bannerBtn = $('installBannerBtn');
+  const banner = $('installBanner');
+  if (bannerText) bannerText.textContent = 'Add Baitul Hikmah to your Home Screen: tap Share, then "Add to Home Screen".';
+  if (bannerBtn) bannerBtn.textContent = 'Got it';
+  if (banner) banner.classList.remove('hidden');
 }
 
-$('installBannerBtn').onclick = async () => {
+function triggerAppInstall() {
+  if (isStandalone) {
+    showToast('Baitul Hikmah is already installed as an app!');
+    return;
+  }
+
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
+    deferredInstallPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        showToast('Thank you for installing Baitul Hikmah!');
+      }
+      deferredInstallPrompt = null;
+    });
+    return;
   }
-  $('installBanner').classList.add('hidden');
-};
-$('installBannerDismiss').onclick = () => {
-  localStorage.setItem('bh_install_dismissed', '1');
-  $('installBanner').classList.add('hidden');
-};
+
+  // Show step-by-step install instructions in a modal
+  const modal = $('installGuideModal');
+  const content = $('installGuideContent');
+  if (modal && content) {
+    if (isIos) {
+      content.innerHTML = `
+        <div style="text-align:left; color:var(--text);">
+          <p style="margin-top:0;"><b>To install on iPhone / iPad:</b></p>
+          <ol style="padding-left:20px; margin:10px 0; line-height:1.6;">
+            <li style="margin-bottom:8px;">Tap the <b>Share</b> button <span style="font-size:1.1rem; vertical-align:middle;">⎋</span> in Safari.</li>
+            <li style="margin-bottom:8px;">Scroll down in the menu and tap <b>"Add to Home Screen"</b> <span style="font-size:1.1rem; vertical-align:middle;">➕</span>.</li>
+            <li>Tap <b>"Add"</b> in the top right corner.</li>
+          </ol>
+          <p style="font-size:0.78rem; color:var(--text-dim); margin:8px 0 0 0; font-style:italic;">Note: Make sure you open this site in <b>Safari</b> on iOS to install.</p>
+        </div>
+      `;
+    } else {
+      content.innerHTML = `
+        <div style="text-align:left; color:var(--text);">
+          <p style="margin-top:0;"><b>To install on Android / Chrome:</b></p>
+          <ol style="padding-left:20px; margin:10px 0; line-height:1.6;">
+            <li style="margin-bottom:8px;">Tap the <b>3 dots menu</b> (⋮) in your browser top right corner.</li>
+            <li style="margin-bottom:8px;">Tap <b>"Install app"</b> or <b>"Add to Home screen"</b>.</li>
+            <li>Confirm by tapping <b>"Install"</b> or <b>"Add"</b>.</li>
+          </ol>
+        </div>
+      `;
+    }
+    modal.classList.remove('hidden');
+  } else {
+    if (isIos) {
+      showToast('To install on iPhone: tap Share ⎋ -> "Add to Home Screen"');
+    } else {
+      showToast('To install: tap browser menu (⋮) -> "Install app"');
+    }
+  }
+}
+
+// Bind click events to all permanent install buttons
+['loginInstallBtn', 'signupInstallBtn', 'profileInstallBtn', 'installBannerBtn'].forEach(id => {
+  const btn = $(id);
+  if (btn) btn.onclick = triggerAppInstall;
+});
+
+const bannerDismissBtn = $('installBannerDismiss');
+if (bannerDismissBtn) {
+  bannerDismissBtn.onclick = () => {
+    localStorage.setItem('bh_install_dismissed', '1');
+    const banner = $('installBanner');
+    if (banner) banner.classList.add('hidden');
+  };
+}
+
+// Modal close handlers for install guide
+if ($('closeInstallGuideBtn')) $('closeInstallGuideBtn').onclick = () => $('installGuideModal').classList.add('hidden');
+if ($('installGuideOkBtn')) $('installGuideOkBtn').onclick = () => $('installGuideModal').classList.add('hidden');
+if ($('installGuideModal') && $('installGuideModal').querySelector('.modal-backdrop')) {
+  $('installGuideModal').querySelector('.modal-backdrop').onclick = () => $('installGuideModal').classList.add('hidden');
+}

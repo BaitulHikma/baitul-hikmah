@@ -86,6 +86,7 @@
         <a href="#" id="gotoForgot">Forgot password?</a>
         <a href="#" id="gotoSignup">Don't have an account? Sign up</a>
       </div>
+      <button type="button" class="btn btn-ghost btn-wide" id="loginInstallBtn" style="margin-top:14px;">📲 Install App / Add to Home Screen</button>
     </form>
 
     <!-- SIGNUP FORM -->
@@ -138,6 +139,7 @@
       <div class="auth-links">
         <a href="#" id="gotoLoginFromSignup">Already have an account? Sign in</a>
       </div>
+      <button type="button" class="btn btn-ghost btn-wide" id="signupInstallBtn" style="margin-top:14px;">📲 Install App / Add to Home Screen</button>
     </form>
 
     <!-- FORGOT PASSWORD FORM -->
@@ -248,6 +250,7 @@
   </div>
 
   <button class="btn btn-ghost btn-wide" id="signOutBtn">Sign out</button>
+  <button type="button" class="btn btn-ghost btn-wide" id="profileInstallBtn" style="margin-top:10px;">📲 Install App / Add to Home Screen</button>
 </section>
 
 <!-- EXPLORE / LIBRARY PAGE -->
@@ -630,6 +633,17 @@
   <span>Get notified about borrow requests and returns.</span>
   <button id="notifBannerBtn" class="btn btn-primary">Enable</button>
   <button id="notifBannerDismiss" class="icon-btn" aria-label="Dismiss">&times;</button>
+</div>
+
+<!-- INSTALL GUIDE MODAL -->
+<div id="installGuideModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet small">
+    <button class="modal-close" id="closeInstallGuideBtn">&times;</button>
+    <h3>📲 Install Baitul Hikmah</h3>
+    <div id="installGuideContent"></div>
+    <button id="installGuideOkBtn" class="btn btn-primary btn-wide" style="margin-top:14px;">Got it!</button>
+  </div>
 </div>
 
 <script src="config.js"></script>
