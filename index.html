@@ -186,7 +186,7 @@
   </div>
 
   <div class="profile-header-card">
-    <div class="profile-header-top">
+    <div class="profile-header-top-row">
       <div class="profile-dp-wrap" id="openEditProfileBtn">
         <img id="profileDpImg" src="" alt="">
         <span class="level-badge" id="profileLevelBadge">Lv -1</span>
@@ -194,11 +194,14 @@
           <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
       </div>
+      <div class="profile-info-block">
+        <h2 id="profileDisplayName" class="profile-display-name"></h2>
+        <p class="profile-bio" id="profileBioLine"></p>
+        <p class="id-tag" id="profileIdLine">ID: <span id="profileIdNum"></span></p>
+      </div>
     </div>
-    <div class="profile-greeting">
-      <p class="id-tag">ID: <span id="profileIdNum"></span></p>
-      <h2 id="profileGreeting"></h2>
-      <p class="profile-bio" id="profileBioLine"></p>
+    <div class="profile-banner-row">
+      <h3 id="profileGreeting" class="profile-greeting-text"></h3>
     </div>
   </div>
 
@@ -271,10 +274,6 @@
 <!-- MEMBERS PAGE (Unified Members & Live Updates #17) -->
 <section id="page-members" class="page hidden">
   <h2 class="page-title">Community &amp; Activity</h2>
-  <div class="members-subtabs" style="display:flex; gap:8px; margin-bottom:14px;">
-    <button class="chip active" id="membersTabBtn" type="button">Members (<span id="membersTotalCount">0</span>)</button>
-    <button class="chip" id="liveUpdateTabBtn" type="button">📡 Live Activity <span id="liveUpdateRedDot" class="notif-red-dot hidden"></span></button>
-  </div>
 
   <div id="membersMainSection" class="members-layout">
     <div class="members-main">
@@ -283,8 +282,11 @@
     </div>
   </div>
 
-  <div id="liveUpdateMainSection" class="hidden">
-    <p class="form-hint" style="margin-bottom:10px;">Real-time activity log across Baitul Hikmah.</p>
+  <div id="liveUpdateMainSection" style="margin-top:24px;">
+    <h3 style="font-size:1.05rem; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+      📡 Live Activity Feed
+    </h3>
+    <p class="form-hint" style="margin-bottom:10px;">Real-time updates across Baitul Hikmah.</p>
     <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
   </div>
 </section>
@@ -325,6 +327,7 @@
   <p class="form-hint" id="uploadHintText">
     Pick photo(s) of book covers from your device. Each image is automatically compressed.
   </p>
+
   <input type="file" id="bookFilesInput" accept="image/*" multiple>
   <p id="compressStatus" class="form-hint hidden"></p>
   <div id="addBooksPreview" class="add-preview-grid"></div>
@@ -379,6 +382,11 @@
       <p id="selectedFeaturedBookLabel" class="form-hint" style="color:var(--accent); font-weight:600; margin-top:6px;"></p>
     </div>
 
+    <div class="field">
+      <label>3. Add writings / thoughts (optional)</label>
+      <textarea id="featuredCaptionInput" rows="3" placeholder="Write a caption, note, or quote about this page..."></textarea>
+    </div>
+
     <p class="form-error" id="postFeaturedError"></p>
     <button id="confirmPostFeaturedBtn" class="btn btn-primary btn-wide" disabled>Confirm &amp; Post to Featured</button>
   </div>
@@ -403,6 +411,10 @@
     </div>
     <div class="story-image-wrap">
       <img id="zoomModalImg" src="" alt="Book page image" class="story-img">
+    </div>
+    <div id="storyCaptionWrap" class="story-caption-wrap hidden" style="margin-top:8px;">
+      <p id="storyCaptionText" class="story-caption-text"></p>
+      <button id="storyCaptionToggleBtn" class="story-caption-toggle hidden" type="button">See more</button>
     </div>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
       <button id="storyDeleteBtn" class="btn btn-danger hidden" style="font-size:0.8rem; padding:8px 14px;">Delete Excerpt</button>
@@ -498,7 +510,7 @@
       <label>Page count</label>
       <input type="number" id="editMetaPageCount" min="1" inputmode="numeric" placeholder="e.g. 320">
     </div>
-    <div class="field">
+    <div class="field hidden" id="editMetaDownloadLinkWrap">
       <label>PDF Download Link (optional)</label>
       <input type="url" id="editMetaDownloadLink" placeholder="https://drive.google.com/file/d/...">
     </div>
