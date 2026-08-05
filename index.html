@@ -283,17 +283,15 @@
     <!-- Leaderboard Banner -->
     <div id="membersLeaderboard" class="leaderboard-banner hidden"></div>
 
-    <!-- Live Activity Feed (placed right after leaderboard before members) -->
+    <!-- Live Activity Drawer Card -->
     <div id="liveUpdateMainSection" class="live-update-card">
-      <div class="live-update-header">
+      <div class="live-update-header" onclick="toggleLiveUpdateDrawer()">
         <h4 class="live-update-title">
           📡 Live Activity Feed
         </h4>
+        <button id="liveUpdateToggleBtn" type="button" class="live-update-toggle-btn">Show top updates ▾</button>
       </div>
-      <div id="fullLiveUpdateList" class="notif-list empty-hint">Loading updates…</div>
-      <div id="liveUpdateToggleWrap" class="live-update-toggle-wrap hidden">
-        <button id="liveUpdateToggleBtn" type="button" class="live-update-toggle-btn">Show more ▾</button>
-      </div>
+      <div id="fullLiveUpdateList" class="notif-list">Loading updates…</div>
     </div>
 
     <!-- Member List -->

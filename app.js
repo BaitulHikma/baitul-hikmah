@@ -938,23 +938,80 @@ window.sendSalam = (btn, targetId) => guardedAction('salam-' + targetId, btn, as
 
 // FULL LIVE UPDATE PAGE (#15)
 let lastLiveUpdateData = null;
+let liveUpdateDrawerExpanded = false;
+let liveUpdateRotateInterval = null;
+let liveUpdateCurrentIndex = 0;
+
+function startLiveUpdateRotation() {
+  stopLiveUpdateRotation();
+  if (!lastLiveUpdateData || !lastLiveUpdateData.updates || lastLiveUpdateData.updates.length <= 1) return;
+  liveUpdateRotateInterval = setInterval(() => {
+    if (liveUpdateDrawerExpanded) return;
+    const updates = lastLiveUpdateData.updates;
+    liveUpdateCurrentIndex = (liveUpdateCurrentIndex + 1) % updates.length;
+    renderFullLiveUpdateList(lastLiveUpdateData);
+  }, 4000);
+}
+
+function stopLiveUpdateRotation() {
+  if (liveUpdateRotateInterval) {
+    clearInterval(liveUpdateRotateInterval);
+    liveUpdateRotateInterval = null;
+  }
+}
+
+window.toggleLiveUpdateDrawer = function() {
+  liveUpdateDrawerExpanded = !liveUpdateDrawerExpanded;
+  const btn = $('liveUpdateToggleBtn');
+  if (btn) {
+    btn.textContent = liveUpdateDrawerExpanded ? 'Show less ▴' : 'Show top updates ▾';
+  }
+  if (lastLiveUpdateData) {
+    renderFullLiveUpdateList(lastLiveUpdateData);
+  }
+  if (liveUpdateDrawerExpanded) {
+    stopLiveUpdateRotation();
+  } else {
+    startLiveUpdateRotation();
+  }
+};
 
 function renderFullLiveUpdateList(data) {
   const container = $('fullLiveUpdateList');
-  if (!data.updates || !data.updates.length) {
+  if (!container) return;
+  const updates = (data && data.updates) || [];
+
+  if (!updates.length) {
     container.classList.add('empty-hint');
     container.textContent = 'No updates yet — stay tuned!';
     return;
   }
   container.classList.remove('empty-hint');
-  container.innerHTML = data.updates.map(u => `
-    <div class="fb-item">
-      ${u.imageFileId ? `<img class="fb-thumb" src="${driveImg(u.imageFileId)}" alt="">` : `<div class="fb-icon">${pickEventIcon(u.text)}</div>`}
-      <div class="fb-body">
-        <div class="fb-text">${escapeHtml(u.text)}</div>
-        <div class="fb-time">${timeAgo(u.createdAt)}</div>
-      </div>
-    </div>`).join('');
+
+  if (!liveUpdateDrawerExpanded) {
+    // Show only 1 item auto-rotating
+    if (liveUpdateCurrentIndex >= updates.length) liveUpdateCurrentIndex = 0;
+    const u = updates[liveUpdateCurrentIndex];
+    container.innerHTML = `
+      <div class="fb-item single-rotating-update">
+        ${u.imageFileId ? `<img class="fb-thumb" src="${driveImg(u.imageFileId)}" alt="">` : `<div class="fb-icon">${pickEventIcon(u.text)}</div>`}
+        <div class="fb-body">
+          <div class="fb-text">${escapeHtml(u.text)}</div>
+          <div class="fb-time">${timeAgo(u.createdAt)}</div>
+        </div>
+      </div>`;
+  } else {
+    // Drawer open: show top 15 updates
+    const list = updates.slice(0, 15);
+    container.innerHTML = list.map(u => `
+      <div class="fb-item">
+        ${u.imageFileId ? `<img class="fb-thumb" src="${driveImg(u.imageFileId)}" alt="">` : `<div class="fb-icon">${pickEventIcon(u.text)}</div>`}
+        <div class="fb-body">
+          <div class="fb-text">${escapeHtml(u.text)}</div>
+          <div class="fb-time">${timeAgo(u.createdAt)}</div>
+        </div>
+      </div>`).join('');
+  }
 }
 
 async function refreshFullLiveUpdates() {
@@ -965,6 +1022,9 @@ async function refreshFullLiveUpdates() {
     const data = await api('getLiveUpdates', {});
     lastLiveUpdateData = data;
     renderFullLiveUpdateList(data);
+    if (!liveUpdateDrawerExpanded) {
+      startLiveUpdateRotation();
+    }
   } catch (err) {
     if (!lastLiveUpdateData) $('fullLiveUpdateList').textContent = err.message;
   }
