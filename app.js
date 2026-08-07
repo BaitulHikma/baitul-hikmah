@@ -554,9 +554,8 @@ function renderBookGrid() {
   const q = $('bookSearch').value.trim().toLowerCase();
   let list = allBooks.slice();
 
-  // Hide hidden books for non-staff users unless owned
-  const isStaff = currentUser && currentUser.isStaff;
-  list = list.filter(b => !b.hidden || isStaff || b.isMine);
+  // Hide hidden books from public library for everyone
+  list = list.filter(b => !b.hidden);
 
   if (singleBookId) {
     list = list.filter(b => b.bookId === singleBookId);
@@ -846,8 +845,8 @@ function renderMembersUI(data) {
   const totalEl = $('membersTotalCount');
   if (totalEl) totalEl.textContent = (data.totalMembersCount || allMembers.length);
 
-  // Filter hidden users for non-staff members (#11)
-  const visibleMembers = allMembers.filter(m => !m.hidden || isStaff);
+  // Hide hidden members from public directory for everyone
+  const visibleMembers = allMembers.filter(m => !m.hidden);
 
   const lb = data.leaderboard || {};
   const lbParts = [];
@@ -1087,8 +1086,8 @@ function renderFeaturedGallery() {
   const sort = $('featuredSort').value;
   let list = allFeaturedPosts.slice();
 
-  const isStaff = !!(currentUser && currentUser.isStaff);
-  list = list.filter(p => !p.hidden || isStaff || (currentUser && String(p.memberId) === String(currentUser.id)));
+  // Hide hidden posts from public gallery for everyone
+  list = list.filter(p => !p.hidden);
 
   if (q) {
     list = list.filter(p =>
@@ -1633,6 +1632,8 @@ $('staffPanelModal').querySelector('.modal-backdrop').onclick = () => $('staffPa
 
 document.querySelectorAll('[data-stafftab]').forEach(btn => {
   btn.onclick = () => {
+    btn.classList.add('pop-active');
+    setTimeout(() => btn.classList.remove('pop-active'), 300);
     document.querySelectorAll('[data-stafftab]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     $('staffMembersTab').classList.toggle('hidden', btn.dataset.stafftab !== 'members');
@@ -1808,6 +1809,7 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => {
   }
 
   renderBookGrid();
+  renderMembersUI(lastMembersData || { members: allMembers });
   renderFeaturedGallery();
 
   const label = targetType === 'book' ? 'Book' : (targetType === 'featured' ? 'Featured post' : 'Account');
@@ -1838,6 +1840,7 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => {
       if (memInAll) memInAll.hidden = !hidden;
       if (postInAll) postInAll.hidden = !hidden;
       renderBookGrid();
+      renderMembersUI(lastMembersData || { members: allMembers });
       renderFeaturedGallery();
       throw err;
     }
