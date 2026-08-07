@@ -355,6 +355,13 @@ async function refreshProfile() {
   try {
     const data = await api('getProfile', {});
     profileData = data;
+    if (data.profile) {
+      currentUser.isAdmin = !!data.profile.isAdmin;
+      currentUser.isModerator = !!data.profile.isModerator;
+      currentUser.isStaff = !!data.profile.isStaff;
+      saveSession(currentUser);
+      if ($('staffPanelBtn')) $('staffPanelBtn').classList.toggle('hidden', !currentUser.isStaff);
+    }
     const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
     const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
     setTxt('profileIdNum', data.profile.id);
@@ -1602,6 +1609,7 @@ $('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanel
   }
   lastStaffPanelData = data;
   renderStaffMembers(data);
+  renderStaffHidden(data);
   renderStaffLog(data.whatsappAccessLog);
   $('staffPanelModal').classList.remove('hidden');
 });
@@ -1613,22 +1621,79 @@ document.querySelectorAll('[data-stafftab]').forEach(btn => {
     document.querySelectorAll('[data-stafftab]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     $('staffMembersTab').classList.toggle('hidden', btn.dataset.stafftab !== 'members');
+    if ($('staffHiddenTab')) $('staffHiddenTab').classList.toggle('hidden', btn.dataset.stafftab !== 'hidden');
     $('staffLogTab').classList.toggle('hidden', btn.dataset.stafftab !== 'log');
   };
 });
 
 function renderStaffMembers(data) {
-  $('staffMembersTab').innerHTML = (data.members || []).map(m => `
+  const isMeAdmin = !!data.isAdmin;
+  $('staffMembersTab').innerHTML = (data.members || []).map(m => {
+    const isMainAdmin = m.isAdmin || (m.email && m.email.toLowerCase() === 'tamim.studio.personal@gmail.com');
+    const isMod = m.role === 'moderator';
+    const roleBadge = isMainAdmin
+      ? '<span class="role-badge admin-badge">ADMIN</span>'
+      : (isMod ? '<span class="role-badge">MOD</span>' : '');
+    const hiddenBadge = m.hidden ? '<span class="role-badge hidden-badge">HIDDEN</span>' : '';
+
+    return `
     <div class="req-card">
       <div class="req-card-body">
-        <div class="name">${escapeHtml(m.displayName)} ${m.role === 'moderator' ? '<span class="role-badge">MOD</span>' : ''}${m.hidden ? '<span class="role-badge hidden-badge">HIDDEN</span>' : ''}</div>
-        <div class="meta">${escapeHtml(m.email)}</div>
+        <div class="name">${escapeHtml(m.displayName)} ${roleBadge}${hiddenBadge}</div>
+        <div class="meta">${escapeHtml(m.email)} · ${m.ownedBooksCount || 0} books</div>
       </div>
       <div class="req-card-actions">
-        ${data.isAdmin ? `<button class="req-cancel" onclick="toggleModerator(this,'${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove mod' : 'Make mod'}</button>` : ''}
+        ${(isMeAdmin && !isMainAdmin) ? `<button class="req-cancel" onclick="toggleModerator(this,'${m.id}', ${!isMod})">${isMod ? 'Remove mod' : 'Make mod'}</button>` : ''}
         <button class="req-cancel" onclick="toggleHidden(this,'user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide' : 'Hide'}</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+function renderStaffHidden(data) {
+  if (!$('staffHiddenTab')) return;
+  const hiddenUsers = (data.members || []).filter(m => m.hidden);
+  const hiddenBooks = (data.books || []).filter(b => b.hidden);
+
+  if (!hiddenUsers.length && !hiddenBooks.length) {
+    $('staffHiddenTab').innerHTML = '<p class="empty-hint" style="padding:20px 0;">No hidden books or accounts.</p>';
+    return;
+  }
+
+  let html = '';
+
+  if (hiddenUsers.length) {
+    html += `<h4 style="margin:10px 0 6px; font-size:0.88rem; color:var(--accent);">Hidden Accounts (${hiddenUsers.length})</h4>`;
+    html += hiddenUsers.map(m => `
+      <div class="req-card">
+        <div class="req-card-body">
+          <div class="name">${escapeHtml(m.displayName)} <span class="role-badge hidden-badge">HIDDEN</span></div>
+          <div class="meta">${escapeHtml(m.email)}</div>
+        </div>
+        <div class="req-card-actions">
+          <button class="req-cancel" onclick="toggleHidden(this,'user','${m.id}', false)">Unhide</button>
+        </div>
+      </div>`).join('');
+  }
+
+  if (hiddenBooks.length) {
+    html += `<h4 style="margin:16px 0 6px; font-size:0.88rem; color:var(--accent);">Hidden Books (${hiddenBooks.length})</h4>`;
+    html += hiddenBooks.map(b => `
+      <div class="req-card" style="align-items:center;">
+        <div style="width:36px; height:48px; flex-shrink:0; margin-right:10px; border-radius:4px; overflow:hidden; background:var(--surface-2);">
+          <img src="${driveImg(b.imageFileId)}" style="width:100%; height:100%; object-fit:cover; margin:0; border-radius:0;">
+        </div>
+        <div class="req-card-body">
+          <div class="name">${escapeHtml(b.bookName || 'Untitled')} <span class="role-badge hidden-badge">HIDDEN</span></div>
+          <div class="meta">By ${escapeHtml(b.writer || '—')} · Owner: ${escapeHtml(b.ownerName || '—')}</div>
+        </div>
+        <div class="req-card-actions">
+          <button class="req-cancel" onclick="toggleHidden(this,'book','${b.bookId}', false)">Unhide</button>
+        </div>
+      </div>`).join('');
+  }
+
+  $('staffHiddenTab').innerHTML = html;
 }
 
 function renderStaffLog(log) {
@@ -1643,31 +1708,59 @@ function renderStaffLog(log) {
 }
 
 window.toggleModerator = (btn, userId, makeModerator) => guardedAction('setmod-' + userId, btn, async () => {
-  const m = lastStaffPanelData.members.find(x => x.id === userId);
-  if (!m) return;
-  const prevRole = m.role;
-  m.role = makeModerator ? 'moderator' : '';
-  renderStaffMembers(lastStaffPanelData);
+  if (lastStaffPanelData && lastStaffPanelData.members) {
+    const m = lastStaffPanelData.members.find(x => x.id === userId);
+    if (m) m.role = makeModerator ? 'moderator' : '';
+    renderStaffMembers(lastStaffPanelData);
+  }
   try {
     await api('setModerator', { targetUserId: userId, makeModerator });
+    showToast(makeModerator ? 'User granted moderator role.' : 'Moderator role removed.');
+    refreshMembers();
   } catch (err) {
-    m.role = prevRole;
-    renderStaffMembers(lastStaffPanelData);
+    if (lastStaffPanelData && lastStaffPanelData.members) {
+      const m = lastStaffPanelData.members.find(x => x.id === userId);
+      if (m) m.role = makeModerator ? '' : 'moderator';
+      renderStaffMembers(lastStaffPanelData);
+    }
     throw err;
   }
 });
 
 window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, btn, async () => {
-  const list = targetType === 'book' ? [] : lastStaffPanelData.members;
-  const m = list.find(x => x.id === targetId);
-  const prevHidden = m ? m.hidden : null;
-  if (m) { m.hidden = hidden; renderStaffMembers(lastStaffPanelData); }
+  if (lastStaffPanelData) {
+    if (targetType === 'user') {
+      const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
+      if (m) m.hidden = hidden;
+    } else if (targetType === 'book') {
+      const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
+      if (b) b.hidden = hidden;
+    }
+    renderStaffMembers(lastStaffPanelData);
+    renderStaffHidden(lastStaffPanelData);
+  }
+
   try {
     await api('setHidden', { targetType, targetId, hidden });
-    showToast(hidden ? 'User hidden from public directory.' : 'User is visible in directory.');
+    showToast(hidden ? (targetType === 'book' ? 'Book hidden from public library.' : 'Account hidden from directory.') : (targetType === 'book' ? 'Book unhidden and public now.' : 'Account unhidden and public now.'));
+    refreshBooks();
     refreshMembers();
+    if (activeModalBook && activeModalBook.bookId === targetId) {
+      activeModalBook.hidden = hidden;
+      renderModalStatusArea(activeModalBook);
+    }
   } catch (err) {
-    if (m) { m.hidden = prevHidden; renderStaffMembers(lastStaffPanelData); }
+    if (lastStaffPanelData) {
+      if (targetType === 'user') {
+        const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
+        if (m) m.hidden = !hidden;
+      } else if (targetType === 'book') {
+        const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
+        if (b) b.hidden = !hidden;
+      }
+      renderStaffMembers(lastStaffPanelData);
+      renderStaffHidden(lastStaffPanelData);
+    }
     throw err;
   }
 });
