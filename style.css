@@ -85,14 +85,38 @@ a:hover { text-decoration: underline; }
   border-bottom: 1px solid var(--border);
   z-index: 40;
 }
-.topbar-title {
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.topbar-brand-btn {
+  background: transparent;
+  border: none;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.18rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--accent);
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+.topbar-brand-btn:hover {
+  background: rgba(212, 175, 55, 0.15);
+}
+.topbar-brand-btn:active {
+  transform: scale(0.97);
+}
+.install-chip-icon {
+  font-size: 0.92rem;
+  opacity: 0.85;
 }
 .icon-btn {
   background: none;
@@ -280,12 +304,40 @@ a:hover { text-decoration: underline; }
 .brand { text-align: center; margin-bottom: 28px; }
 .brand-mark { width: 64px; height: 64px; margin: 0 auto 10px; }
 .brand-mark svg { width: 100%; height: 100%; }
-.brand-name {
+.brand-name-btn {
+  background: transparent;
+  border: none;
   font-family: var(--font-display);
   font-size: 2rem;
+  font-weight: 700;
   color: var(--accent);
-  margin: 0;
   letter-spacing: 0.02em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.brand-name-btn:hover {
+  background: rgba(212, 175, 55, 0.12);
+}
+.brand-name-btn:active {
+  transform: scale(0.98);
+}
+.auth-install-badge {
+  font-size: 0.72rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  padding: 3px 8px;
+  border-radius: 12px;
+  vertical-align: middle;
 }
 .brand-moto {
   color: var(--text-dim);

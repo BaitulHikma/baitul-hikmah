@@ -34,10 +34,15 @@
 
 <!-- TOP APP BAR -->
 <header id="topbar" class="topbar hidden">
-  <button id="backBtn" class="icon-btn hidden" aria-label="Back">
-    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
-  <div class="topbar-title">Baitul Hikmah</div>
+  <div class="topbar-left">
+    <button id="backBtn" class="icon-btn hidden" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="topbarTitleBtn" type="button" class="topbar-brand-btn" title="Install App / Add to Home Screen" aria-label="Install App / Add to Home Screen">
+      <span>Baitul Hikmah</span>
+      <span class="install-chip-icon">📲</span>
+    </button>
+  </div>
   <div class="topbar-right">
     <button id="hadiyaBtn" class="icon-btn" aria-label="Hadiya Section" title="Hadiya (Free Gifts)">
       <span class="hadiya-icon">🎁</span>
@@ -66,7 +71,10 @@
                    fill="none" stroke="var(--accent)" stroke-width="1.4"/>
         </svg>
       </div>
-      <h1 class="brand-name">Baitul Hikmah</h1>
+      <button id="authBrandBtn" type="button" class="brand-name-btn" title="Install App / Add to Home Screen" aria-label="Install App / Add to Home Screen">
+        <span>Baitul Hikmah</span>
+        <span class="auth-install-badge">📲 Install App</span>
+      </button>
       <p class="brand-moto">House of Wisdom — share a book, share a blessing</p>
     </div>
 
@@ -86,7 +94,6 @@
         <a href="#" id="gotoForgot">Forgot password?</a>
         <a href="#" id="gotoSignup">Don't have an account? Sign up</a>
       </div>
-      <button type="button" class="btn btn-ghost btn-small-text btn-wide" id="loginInstallBtn" style="margin-top:14px;">📲 Install App / Add to Home Screen</button>
     </form>
 
     <!-- SIGNUP FORM -->
@@ -139,7 +146,6 @@
       <div class="auth-links">
         <a href="#" id="gotoLoginFromSignup">Already have an account? Sign in</a>
       </div>
-      <button type="button" class="btn btn-ghost btn-small-text btn-wide" id="signupInstallBtn" style="margin-top:14px;">📲 Install App / Add to Home Screen</button>
     </form>
 
     <!-- FORGOT PASSWORD FORM -->
@@ -250,7 +256,6 @@
   </div>
 
   <button class="btn btn-ghost btn-wide" id="signOutBtn">Sign out</button>
-  <button type="button" class="btn btn-ghost btn-small-text btn-wide" id="profileInstallBtn" style="margin-top:10px;">📲 Install App / Add to Home Screen</button>
 </section>
 
 <!-- EXPLORE / LIBRARY PAGE -->
