@@ -152,7 +152,7 @@ function compressImage(file, maxKB) {
 }
 
 // API CALL
-async function api(action, payload) {
+async function api(action, payload, retries = 2) {
   if (!API_URL || API_URL.indexOf('PASTE_YOUR') !== -1) {
     showToast('Please set your Apps Script URL in config.js');
     throw new Error('API_URL not configured in config.js');
@@ -162,14 +162,25 @@ async function api(action, payload) {
     body.userId = body.userId || currentUser.id;
     body.token = body.token || currentUser.token;
   }
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Something went wrong.');
-  return data;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Something went wrong.');
+      return data;
+    } catch (err) {
+      const isFetchErr = err.name === 'TypeError' || String(err.message || err).toLowerCase().includes('failed to fetch');
+      if (attempt < retries && isFetchErr) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 function saveSession(user) {
@@ -720,22 +731,10 @@ $('modalWhatsappBtn').onclick = (e) => {
   $('waConfirmPassword').focus();
 };
 
-$('modalHideBookBtn').onclick = (e) => guardedAction('hidebook', e.target, async () => {
+$('modalHideBookBtn').onclick = (e) => {
   if (!activeModalBook) return;
-  const b = activeModalBook;
-  const newHidden = !b.hidden;
-  b.hidden = newHidden;
-  renderModalStatusArea(b);
-  try {
-    await api('setHidden', { targetType: 'book', targetId: b.bookId, hidden: newHidden });
-    showToast(newHidden ? 'Book hidden from public library.' : 'Book is visible in public library.');
-    refreshBooks();
-  } catch (err) {
-    b.hidden = !newHidden;
-    renderModalStatusArea(b);
-    throw err;
-  }
-});
+  toggleHidden(e.target, 'book', activeModalBook.bookId, !activeModalBook.hidden);
+};
 
 $('closeWaConfirmBtn').onclick = () => $('waConfirmModal').classList.add('hidden');
 $('waConfirmModal').querySelector('.modal-backdrop').onclick = () => $('waConfirmModal').classList.add('hidden');
@@ -1673,31 +1672,37 @@ function renderStaffHidden(data) {
   const hiddenFeatured = (data.featuredPosts || []).filter(p => p.hidden);
 
   if (!hiddenUsers.length && !hiddenBooks.length && !hiddenFeatured.length) {
-    $('staffHiddenTab').innerHTML = '<p class="empty-hint" style="padding:20px 0;">No hidden items right now.</p>';
+    $('staffHiddenTab').innerHTML = '<p class="empty-hint" style="padding:24px 0; text-align:center;">No hidden items. Hidden items will appear here.</p>';
     return;
   }
 
   let html = '';
 
   if (hiddenUsers.length) {
-    html += `<h4 style="margin:10px 0 6px; font-size:0.88rem; color:var(--accent);">Hidden Accounts (${hiddenUsers.length})</h4>`;
+    html += `<div style="margin:12px 0 8px; display:flex; align-items:center; justify-content:space-between;">
+      <h4 style="font-size:0.88rem; font-weight:700; color:var(--accent);">Hidden Accounts</h4>
+      <span class="count-badge">${hiddenUsers.length}</span>
+    </div>`;
     html += hiddenUsers.map(m => `
       <div class="req-card">
         <div class="req-card-body">
           <div class="name">${escapeHtml(m.displayName)} <span class="role-badge hidden-badge">HIDDEN</span></div>
-          <div class="meta">${escapeHtml(m.email)}</div>
+          <div class="meta">${escapeHtml(m.email)} ${m.city ? '· ' + escapeHtml(m.city) : ''}</div>
         </div>
         <div class="req-card-actions">
-          <button class="req-cancel" onclick="toggleHidden(this,'user','${m.id}', false)">Unhide</button>
+          <button class="req-cancel pop-btn" onclick="toggleHidden(this,'user','${m.id}', false)">Unhide</button>
         </div>
       </div>`).join('');
   }
 
   if (hiddenBooks.length) {
-    html += `<h4 style="margin:16px 0 6px; font-size:0.88rem; color:var(--accent);">Hidden Books (${hiddenBooks.length})</h4>`;
+    html += `<div style="margin:20px 0 8px; display:flex; align-items:center; justify-content:space-between;">
+      <h4 style="font-size:0.88rem; font-weight:700; color:var(--accent);">Hidden Books</h4>
+      <span class="count-badge">${hiddenBooks.length}</span>
+    </div>`;
     html += hiddenBooks.map(b => `
       <div class="req-card" style="align-items:center;">
-        <div style="width:36px; height:48px; flex-shrink:0; margin-right:10px; border-radius:4px; overflow:hidden; background:var(--surface-2);">
+        <div style="width:38px; height:50px; flex-shrink:0; margin-right:12px; border-radius:6px; overflow:hidden; background:var(--surface-2);">
           <img src="${driveImg(b.imageFileId)}" style="width:100%; height:100%; object-fit:cover; margin:0; border-radius:0;">
         </div>
         <div class="req-card-body">
@@ -1705,16 +1710,19 @@ function renderStaffHidden(data) {
           <div class="meta">By ${escapeHtml(b.writer || '—')} · Owner: ${escapeHtml(b.ownerName || '—')}</div>
         </div>
         <div class="req-card-actions">
-          <button class="req-cancel" onclick="toggleHidden(this,'book','${b.bookId}', false)">Unhide</button>
+          <button class="req-cancel pop-btn" onclick="toggleHidden(this,'book','${b.bookId}', false)">Unhide</button>
         </div>
       </div>`).join('');
   }
 
   if (hiddenFeatured.length) {
-    html += `<h4 style="margin:16px 0 6px; font-size:0.88rem; color:var(--accent);">Hidden Featured Posts (${hiddenFeatured.length})</h4>`;
+    html += `<div style="margin:20px 0 8px; display:flex; align-items:center; justify-content:space-between;">
+      <h4 style="font-size:0.88rem; font-weight:700; color:var(--accent);">Hidden Featured Posts</h4>
+      <span class="count-badge">${hiddenFeatured.length}</span>
+    </div>`;
     html += hiddenFeatured.map(p => `
       <div class="req-card" style="align-items:center;">
-        <div style="width:36px; height:48px; flex-shrink:0; margin-right:10px; border-radius:4px; overflow:hidden; background:var(--surface-2);">
+        <div style="width:38px; height:50px; flex-shrink:0; margin-right:12px; border-radius:6px; overflow:hidden; background:var(--surface-2);">
           <img src="${driveImg(p.imageFileId)}" style="width:100%; height:100%; object-fit:cover; margin:0; border-radius:0;">
         </div>
         <div class="req-card-body">
@@ -1722,7 +1730,7 @@ function renderStaffHidden(data) {
           <div class="meta">Posted by: ${escapeHtml(p.memberName || 'Member')}</div>
         </div>
         <div class="req-card-actions">
-          <button class="req-cancel" onclick="toggleHidden(this,'featured','${p.id}', false)">Unhide</button>
+          <button class="req-cancel pop-btn" onclick="toggleHidden(this,'featured','${p.id}', false)">Unhide</button>
         </div>
       </div>`).join('');
   }
@@ -1748,11 +1756,11 @@ window.toggleModerator = (btn, userId, makeModerator) => {
   }
 
   if (lastStaffPanelData && lastStaffPanelData.members) {
-    const m = lastStaffPanelData.members.find(x => x.id === userId);
+    const m = lastStaffPanelData.members.find(x => String(x.id) === String(userId));
     if (m) m.role = makeModerator ? 'moderator' : '';
     renderStaffMembers(lastStaffPanelData);
   }
-  const memInList = allMembers.find(x => x.id === userId);
+  const memInList = allMembers.find(x => String(x.id) === String(userId));
   if (memInList) memInList.role = makeModerator ? 'moderator' : '';
 
   showToast(makeModerator ? 'User granted moderator role.' : 'Moderator role removed.');
@@ -1763,7 +1771,7 @@ window.toggleModerator = (btn, userId, makeModerator) => {
       refreshMembers();
     } catch (err) {
       if (lastStaffPanelData && lastStaffPanelData.members) {
-        const m = lastStaffPanelData.members.find(x => x.id === userId);
+        const m = lastStaffPanelData.members.find(x => String(x.id) === String(userId));
         if (m) m.role = makeModerator ? '' : 'moderator';
         renderStaffMembers(lastStaffPanelData);
       }
@@ -1781,31 +1789,36 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => {
 
   if (lastStaffPanelData) {
     if (targetType === 'user') {
-      const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
+      const m = (lastStaffPanelData.members || []).find(x => String(x.id) === String(targetId));
       if (m) m.hidden = hidden;
     } else if (targetType === 'book') {
-      const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
+      const b = (lastStaffPanelData.books || []).find(x => String(x.bookId) === String(targetId));
       if (b) b.hidden = hidden;
     } else if (targetType === 'featured') {
-      const p = (lastStaffPanelData.featuredPosts || []).find(x => x.id === targetId);
+      const p = (lastStaffPanelData.featuredPosts || []).find(x => String(x.id) === String(targetId));
       if (p) p.hidden = hidden;
     }
     renderStaffMembers(lastStaffPanelData);
     renderStaffHidden(lastStaffPanelData);
   }
 
-  const bookInAll = allBooks.find(b => b.bookId === targetId);
+  const bookInAll = allBooks.find(b => String(b.bookId) === String(targetId));
   if (bookInAll) bookInAll.hidden = hidden;
 
-  const memInAll = allMembers.find(m => m.id === targetId);
+  const memInAll = allMembers.find(m => String(m.id) === String(targetId));
   if (memInAll) memInAll.hidden = hidden;
 
-  const postInAll = allFeaturedPosts.find(p => p.id === targetId);
+  const postInAll = allFeaturedPosts.find(p => String(p.id) === String(targetId));
   if (postInAll) postInAll.hidden = hidden;
 
-  if (activeModalBook && activeModalBook.bookId === targetId) {
+  if (activeModalBook && String(activeModalBook.bookId) === String(targetId)) {
     activeModalBook.hidden = hidden;
     renderModalStatusArea(activeModalBook);
+  }
+
+  const storyHideBtnEl = $('storyHideBtn');
+  if (storyHideBtnEl) {
+    storyHideBtnEl.textContent = hidden ? 'Unhide Excerpt' : 'Hide Excerpt';
   }
 
   renderBookGrid();
@@ -1824,13 +1837,13 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => {
     } catch (err) {
       if (lastStaffPanelData) {
         if (targetType === 'user') {
-          const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
+          const m = (lastStaffPanelData.members || []).find(x => String(x.id) === String(targetId));
           if (m) m.hidden = !hidden;
         } else if (targetType === 'book') {
-          const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
+          const b = (lastStaffPanelData.books || []).find(x => String(x.bookId) === String(targetId));
           if (b) b.hidden = !hidden;
         } else if (targetType === 'featured') {
-          const p = (lastStaffPanelData.featuredPosts || []).find(x => x.id === targetId);
+          const p = (lastStaffPanelData.featuredPosts || []).find(x => String(x.id) === String(targetId));
           if (p) p.hidden = !hidden;
         }
         renderStaffMembers(lastStaffPanelData);
@@ -1839,6 +1852,10 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => {
       if (bookInAll) bookInAll.hidden = !hidden;
       if (memInAll) memInAll.hidden = !hidden;
       if (postInAll) postInAll.hidden = !hidden;
+      if (activeModalBook && String(activeModalBook.bookId) === String(targetId)) {
+        activeModalBook.hidden = !hidden;
+        renderModalStatusArea(activeModalBook);
+      }
       renderBookGrid();
       renderMembersUI(lastMembersData || { members: allMembers });
       renderFeaturedGallery();
