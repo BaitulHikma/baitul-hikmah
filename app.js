@@ -1087,6 +1087,9 @@ function renderFeaturedGallery() {
   const sort = $('featuredSort').value;
   let list = allFeaturedPosts.slice();
 
+  const isStaff = !!(currentUser && currentUser.isStaff);
+  list = list.filter(p => !p.hidden || isStaff || (currentUser && String(p.memberId) === String(currentUser.id)));
+
   if (q) {
     list = list.filter(p =>
       String(p.bookName || '').toLowerCase().includes(q) ||
@@ -1114,6 +1117,7 @@ function renderFeaturedGallery() {
     const mainImg = driveImg(p.imageFileId);
     const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
     const coverThumb = coverFileId ? driveImg(coverFileId) : '';
+    const hiddenBadge = (isStaff && p.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
 
     return `
     <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
@@ -1122,7 +1126,7 @@ function renderFeaturedGallery() {
         <div class="story-card-header">
           <img class="story-card-dp" src="${posterDp}" alt="">
           <div class="story-card-user-info">
-            <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}</span>
+            <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}${hiddenBadge}</span>
             <span class="story-card-time">${timeAgo(p.createdAt)}</span>
           </div>
         </div>
@@ -1210,6 +1214,17 @@ window.openFeaturedZoomModal = (postId) => {
         showToast('Featured post deleted.');
         refreshFeaturedPosts();
       });
+    };
+  }
+
+  const hideBtn = $('storyHideBtn');
+  if (hideBtn) {
+    const isStaff = !!(currentUser && currentUser.isStaff);
+    hideBtn.classList.toggle('hidden', !isStaff);
+    hideBtn.textContent = p.hidden ? 'Unhide Excerpt' : 'Hide Excerpt';
+    hideBtn.onclick = (e) => {
+      e.stopPropagation();
+      toggleHidden(hideBtn, 'featured', p.id, !p.hidden);
     };
   }
 
@@ -1654,9 +1669,10 @@ function renderStaffHidden(data) {
   if (!$('staffHiddenTab')) return;
   const hiddenUsers = (data.members || []).filter(m => m.hidden);
   const hiddenBooks = (data.books || []).filter(b => b.hidden);
+  const hiddenFeatured = (data.featuredPosts || []).filter(p => p.hidden);
 
-  if (!hiddenUsers.length && !hiddenBooks.length) {
-    $('staffHiddenTab').innerHTML = '<p class="empty-hint" style="padding:20px 0;">No hidden books or accounts.</p>';
+  if (!hiddenUsers.length && !hiddenBooks.length && !hiddenFeatured.length) {
+    $('staffHiddenTab').innerHTML = '<p class="empty-hint" style="padding:20px 0;">No hidden items right now.</p>';
     return;
   }
 
@@ -1693,6 +1709,23 @@ function renderStaffHidden(data) {
       </div>`).join('');
   }
 
+  if (hiddenFeatured.length) {
+    html += `<h4 style="margin:16px 0 6px; font-size:0.88rem; color:var(--accent);">Hidden Featured Posts (${hiddenFeatured.length})</h4>`;
+    html += hiddenFeatured.map(p => `
+      <div class="req-card" style="align-items:center;">
+        <div style="width:36px; height:48px; flex-shrink:0; margin-right:10px; border-radius:4px; overflow:hidden; background:var(--surface-2);">
+          <img src="${driveImg(p.imageFileId)}" style="width:100%; height:100%; object-fit:cover; margin:0; border-radius:0;">
+        </div>
+        <div class="req-card-body">
+          <div class="name">${escapeHtml(p.bookName || 'Excerpt')} <span class="role-badge hidden-badge">HIDDEN</span></div>
+          <div class="meta">Posted by: ${escapeHtml(p.memberName || 'Member')}</div>
+        </div>
+        <div class="req-card-actions">
+          <button class="req-cancel" onclick="toggleHidden(this,'featured','${p.id}', false)">Unhide</button>
+        </div>
+      </div>`).join('');
+  }
+
   $('staffHiddenTab').innerHTML = html;
 }
 
@@ -1707,27 +1740,44 @@ function renderStaffLog(log) {
     </div>`).join('');
 }
 
-window.toggleModerator = (btn, userId, makeModerator) => guardedAction('setmod-' + userId, btn, async () => {
+window.toggleModerator = (btn, userId, makeModerator) => {
+  if (btn) {
+    btn.classList.add('pop-active');
+    setTimeout(() => btn.classList.remove('pop-active'), 300);
+  }
+
   if (lastStaffPanelData && lastStaffPanelData.members) {
     const m = lastStaffPanelData.members.find(x => x.id === userId);
     if (m) m.role = makeModerator ? 'moderator' : '';
     renderStaffMembers(lastStaffPanelData);
   }
-  try {
-    await api('setModerator', { targetUserId: userId, makeModerator });
-    showToast(makeModerator ? 'User granted moderator role.' : 'Moderator role removed.');
-    refreshMembers();
-  } catch (err) {
-    if (lastStaffPanelData && lastStaffPanelData.members) {
-      const m = lastStaffPanelData.members.find(x => x.id === userId);
-      if (m) m.role = makeModerator ? '' : 'moderator';
-      renderStaffMembers(lastStaffPanelData);
-    }
-    throw err;
-  }
-});
+  const memInList = allMembers.find(x => x.id === userId);
+  if (memInList) memInList.role = makeModerator ? 'moderator' : '';
 
-window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, btn, async () => {
+  showToast(makeModerator ? 'User granted moderator role.' : 'Moderator role removed.');
+
+  guardedAction('setmod-' + userId, btn, async () => {
+    try {
+      await api('setModerator', { targetUserId: userId, makeModerator });
+      refreshMembers();
+    } catch (err) {
+      if (lastStaffPanelData && lastStaffPanelData.members) {
+        const m = lastStaffPanelData.members.find(x => x.id === userId);
+        if (m) m.role = makeModerator ? '' : 'moderator';
+        renderStaffMembers(lastStaffPanelData);
+      }
+      if (memInList) memInList.role = makeModerator ? '' : 'moderator';
+      throw err;
+    }
+  });
+};
+
+window.toggleHidden = (btn, targetType, targetId, hidden) => {
+  if (btn) {
+    btn.classList.add('pop-active');
+    setTimeout(() => btn.classList.remove('pop-active'), 300);
+  }
+
   if (lastStaffPanelData) {
     if (targetType === 'user') {
       const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
@@ -1735,35 +1785,64 @@ window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('seth
     } else if (targetType === 'book') {
       const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
       if (b) b.hidden = hidden;
+    } else if (targetType === 'featured') {
+      const p = (lastStaffPanelData.featuredPosts || []).find(x => x.id === targetId);
+      if (p) p.hidden = hidden;
     }
     renderStaffMembers(lastStaffPanelData);
     renderStaffHidden(lastStaffPanelData);
   }
 
-  try {
-    await api('setHidden', { targetType, targetId, hidden });
-    showToast(hidden ? (targetType === 'book' ? 'Book hidden from public library.' : 'Account hidden from directory.') : (targetType === 'book' ? 'Book unhidden and public now.' : 'Account unhidden and public now.'));
-    refreshBooks();
-    refreshMembers();
-    if (activeModalBook && activeModalBook.bookId === targetId) {
-      activeModalBook.hidden = hidden;
-      renderModalStatusArea(activeModalBook);
-    }
-  } catch (err) {
-    if (lastStaffPanelData) {
-      if (targetType === 'user') {
-        const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
-        if (m) m.hidden = !hidden;
-      } else if (targetType === 'book') {
-        const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
-        if (b) b.hidden = !hidden;
-      }
-      renderStaffMembers(lastStaffPanelData);
-      renderStaffHidden(lastStaffPanelData);
-    }
-    throw err;
+  const bookInAll = allBooks.find(b => b.bookId === targetId);
+  if (bookInAll) bookInAll.hidden = hidden;
+
+  const memInAll = allMembers.find(m => m.id === targetId);
+  if (memInAll) memInAll.hidden = hidden;
+
+  const postInAll = allFeaturedPosts.find(p => p.id === targetId);
+  if (postInAll) postInAll.hidden = hidden;
+
+  if (activeModalBook && activeModalBook.bookId === targetId) {
+    activeModalBook.hidden = hidden;
+    renderModalStatusArea(activeModalBook);
   }
-});
+
+  renderBookGrid();
+  renderFeaturedGallery();
+
+  const label = targetType === 'book' ? 'Book' : (targetType === 'featured' ? 'Featured post' : 'Account');
+  showToast(hidden ? `${label} hidden from public.` : `${label} is public now.`);
+
+  guardedAction('sethidden-' + targetId, btn, async () => {
+    try {
+      await api('setHidden', { targetType, targetId, hidden });
+      refreshBooks();
+      refreshMembers();
+      refreshFeaturedPosts();
+    } catch (err) {
+      if (lastStaffPanelData) {
+        if (targetType === 'user') {
+          const m = (lastStaffPanelData.members || []).find(x => x.id === targetId);
+          if (m) m.hidden = !hidden;
+        } else if (targetType === 'book') {
+          const b = (lastStaffPanelData.books || []).find(x => x.bookId === targetId);
+          if (b) b.hidden = !hidden;
+        } else if (targetType === 'featured') {
+          const p = (lastStaffPanelData.featuredPosts || []).find(x => x.id === targetId);
+          if (p) p.hidden = !hidden;
+        }
+        renderStaffMembers(lastStaffPanelData);
+        renderStaffHidden(lastStaffPanelData);
+      }
+      if (bookInAll) bookInAll.hidden = !hidden;
+      if (memInAll) memInAll.hidden = !hidden;
+      if (postInAll) postInAll.hidden = !hidden;
+      renderBookGrid();
+      renderFeaturedGallery();
+      throw err;
+    }
+  });
+};
 
 // BOOT
 (function boot() {
