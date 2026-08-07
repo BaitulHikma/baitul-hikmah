@@ -591,7 +591,8 @@ function renderBookGrid() {
           : 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + escapeHtml(b.borrowerName) : ''));
     const statusClass = isPdf ? 'available' : (b.status === 'available' ? 'available' : 'unavailable');
     const pageBadge = b.pageCount ? `<div class="page-count-badge">${escapeHtml(String(b.pageCount))}p</div>` : '';
-    const hiddenBadge = (isStaff && b.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
+  const isStaff = currentUser && currentUser.isStaff;
+  const hiddenBadge = (isStaff && b.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
 
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
       <div class="book-cover-wrap" style="position:relative;">
