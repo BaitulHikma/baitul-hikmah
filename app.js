@@ -152,7 +152,7 @@ function compressImage(file, maxKB) {
 }
 
 // API CALL
-async function api(action, payload, retries = 2) {
+async function api(action, payload) {
   if (!API_URL || API_URL.indexOf('PASTE_YOUR') !== -1) {
     showToast('Please set your Apps Script URL in config.js');
     throw new Error('API_URL not configured in config.js');
@@ -162,25 +162,14 @@ async function api(action, payload, retries = 2) {
     body.userId = body.userId || currentUser.id;
     body.token = body.token || currentUser.token;
   }
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Something went wrong.');
-      return data;
-    } catch (err) {
-      const isFetchErr = err.name === 'TypeError' || String(err.message || err).toLowerCase().includes('failed to fetch');
-      if (attempt < retries && isFetchErr) {
-        await new Promise(r => setTimeout(r, 400));
-        continue;
-      }
-      throw err;
-    }
-  }
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Something went wrong.');
+  return data;
 }
 
 function saveSession(user) {
