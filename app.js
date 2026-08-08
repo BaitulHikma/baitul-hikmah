@@ -1107,6 +1107,10 @@ function renderFeaturedGallery() {
     const mainImg = driveImg(p.imageFileId);
     const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
     const coverThumb = coverFileId ? driveImg(coverFileId) : '';
+    const captionVal = (p.caption || p.Caption || '').trim();
+    const captionSnippet = captionVal
+      ? `<div class="story-card-caption-snippet" style="font-size:0.72rem; color:rgba(255,255,255,0.9); line-height:1.25; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-shadow:0 1px 3px rgba(0,0,0,0.9);">${escapeHtml(captionVal)}</div>`
+      : '';
 
     return `
     <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
@@ -1122,6 +1126,7 @@ function renderFeaturedGallery() {
         <div class="story-card-footer">
           ${coverThumb ? `<img class="story-card-book-cover" src="${coverThumb}" alt="" title="${escapeHtml(p.bookName || '')}">` : ''}
           <div class="story-card-title">${escapeHtml(p.bookName || 'Excerpt')}</div>
+          ${captionSnippet}
         </div>
       </div>
     </div>
@@ -1157,14 +1162,25 @@ window.openFeaturedZoomModal = (postId) => {
   const captionToggle = $('storyCaptionToggleBtn');
 
   if (captionWrap && captionText) {
-    const captionVal = (p.caption || p.Caption || '').trim();
+    let captionVal = String(p.caption || p.Caption || '').trim();
+    if (!captionVal) {
+      for (let k in p) {
+        if (k && (k.toLowerCase().includes('caption') || k === 'undefined' || k === '')) {
+          if (p[k] && String(p[k]).trim().length > 0 && String(p[k]).trim() !== 'undefined') {
+            captionVal = String(p[k]).trim();
+            break;
+          }
+        }
+      }
+    }
+
     if (captionVal) {
       captionWrap.classList.remove('hidden');
       captionText.textContent = captionVal;
-      captionText.classList.add('clamp-2');
+      captionText.className = 'story-caption-text clamp-2';
 
       if (captionToggle) {
-        if (captionVal.length > 40) {
+        if (captionVal.length > 30) {
           captionToggle.classList.remove('hidden');
           captionToggle.textContent = 'See more';
           captionToggle.onclick = (e) => {
