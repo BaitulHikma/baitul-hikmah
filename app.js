@@ -1137,7 +1137,6 @@ function renderFeaturedGallery() {
 window.openFeaturedZoomModal = (postId) => {
   const p = allFeaturedPosts.find(x => x.id === postId);
   if (!p) return;
-  console.log('[DEBUG featured post]', p); // TEMP — tells us if caption data even arrived; safe to ignore/remove later
 
   const posterDp = driveImg(p.posterDpFileId);
   const mainImg = driveImg(p.imageFileId);
