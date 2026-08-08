@@ -1798,7 +1798,7 @@ function triggerAppInstall() {
 }
 
 // Bind click events to all permanent install buttons
-['loginInstallBtn', 'signupInstallBtn', 'profileInstallBtn', 'installBannerBtn'].forEach(id => {
+['topbarTitleBtn', 'authBrandBtn', 'installBannerBtn'].forEach(id => {
   const btn = $(id);
   if (btn) btn.onclick = triggerAppInstall;
 });
