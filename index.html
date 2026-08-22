@@ -40,7 +40,6 @@
     </button>
     <button id="topbarTitleBtn" type="button" class="topbar-brand-btn" title="Install App / Add to Home Screen" aria-label="Install App / Add to Home Screen">
       <span>Baitul Hikmah</span>
-      <span class="install-chip-icon">📲</span>
     </button>
   </div>
   <div class="topbar-right">
@@ -48,7 +47,7 @@
       <span class="hadiya-icon">🎁</span>
       <span id="hadiyaRedDot" class="notif-red-dot"></span>
     </button>
-    <button id="staffPanelBtn" class="icon-btn hidden" aria-label="Staff panel">
+    <button id="staffPanelBtn" class="icon-btn hidden" aria-label="Admin WhatsApp log" title="Admin WhatsApp Log">
       <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
     </button>
     <button id="notifBellBtn" class="icon-btn" aria-label="Notifications">
@@ -73,7 +72,7 @@
       </div>
       <button id="authBrandBtn" type="button" class="brand-name-btn" title="Install App / Add to Home Screen" aria-label="Install App / Add to Home Screen">
         <span>Baitul Hikmah</span>
-        <span class="auth-install-badge">📲 Install App</span>
+        <span class="auth-install-badge">Install App</span>
       </button>
       <p class="brand-moto">House of Wisdom — share a book, share a blessing</p>
     </div>
@@ -260,8 +259,8 @@
 
 <!-- EXPLORE / LIBRARY PAGE -->
 <section id="page-explore" class="page hidden">
-  <div style="display:flex; align-items:center; justify-space-between; margin-bottom:12px;">
-    <h2 class="page-title" style="margin:0;">Explore (<span id="exploreTotalCount">0</span> Books)</h2>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+    <h2 class="page-title" style="margin:0;">Explore (Total: <span id="exploreTotalCount">0</span> books)</h2>
   </div>
   <div class="explore-toolbar">
     <input type="search" id="bookSearch" placeholder="Search by book, writer, publisher, owner...">
@@ -272,6 +271,7 @@
   <div class="filter-chips" id="filterChips">
     <button class="chip active" data-filter="all">All</button>
     <button class="chip" data-filter="mine">My books</button>
+    <button class="chip" data-filter="lent">Lent out</button>
     <button class="chip" data-filter="requesting">Requesting</button>
     <button class="chip" data-filter="requested">Requested (mine)</button>
     <button class="chip" data-filter="borrowed">Borrowed by me</button>
@@ -307,28 +307,35 @@
   </div>
 </section>
 
-<!-- FEATURED BOOK PAGES (#16) -->
-<section id="page-featured" class="page hidden">
-  <div class="featured-header">
-    <h2 class="page-title" style="margin:0;">Featured Book Pages</h2>
-    <p class="form-hint" style="margin-top:4px;">Read excerpts, quotes &amp; favorite pages shared by members.</p>
+<!-- REVIEWS PAGE (#16) -->
+<section id="page-reviews" class="page hidden">
+  <div class="reviews-header">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <h2 class="page-title" style="margin:0;">Reviews (<span id="reviewsTotalCount">0</span>)</h2>
+    </div>
+    <p class="form-hint" style="margin-top:4px;">Read excerpts, quotes &amp; thoughts shared by members.</p>
   </div>
 
-  <div class="featured-toolbar">
-    <input type="search" id="featuredSearch" placeholder="Search book, writer, or member...">
-    <select id="featuredSort" class="featured-sort-select">
+  <div id="reviewBookFilterBanner" class="filter-banner hidden" style="background:var(--surface-2); border:1px solid var(--accent-dim); border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; font-size:0.82rem;">
+    <span>Showing reviews for: <b id="reviewFilterBookName" style="color:var(--accent);"></b></span>
+    <button id="clearReviewBookFilterBtn" type="button" class="btn btn-ghost" style="padding:4px 8px; font-size:0.75rem; border:none; color:var(--accent);">Show all ✕</button>
+  </div>
+
+  <div class="reviews-toolbar">
+    <input type="search" id="reviewsSearch" placeholder="Search book, writer, or member...">
+    <select id="reviewsSort" class="reviews-sort-select">
       <option value="newest">Newest first</option>
       <option value="oldest">Oldest first</option>
       <option value="members">Categorize by members</option>
     </select>
   </div>
 
-  <div id="featuredGallery" class="featured-gallery">
-    <p class="empty-hint">Loading featured posts…</p>
+  <div id="reviewsGallery" class="reviews-gallery">
+    <p class="empty-hint">Loading reviews…</p>
   </div>
 
-  <!-- Floating Add (+) button to post a book page excerpt -->
-  <button id="openPostFeaturedBtn" class="fab-btn" aria-label="Post a book page">
+  <!-- Floating Add (+) button to post a review -->
+  <button id="openPostReviewBtn" class="fab-btn" aria-label="Post a review" title="Post a review">
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
   </button>
 </section>
@@ -373,44 +380,45 @@
   </div>
 </div>
 
-<!-- FEATURED POST MODAL (Upload & mention book) (#16) -->
-<div id="postFeaturedModal" class="modal hidden">
+<!-- POST REVIEW MODAL (#16) -->
+<div id="postReviewModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet">
-    <button class="modal-close" id="closePostFeaturedBtn">&times;</button>
-    <h3>Post a Book Page Excerpt</h3>
-    <p class="form-hint">Share 1 photo of a book page you love for public view.</p>
+    <button class="modal-close" id="closePostReviewBtn">&times;</button>
+    <h3>Post a Review</h3>
+    <p class="form-hint">Share your thoughts, quotes, or a page excerpt from a book.</p>
 
     <div class="field">
-      <label>1. Select page photo from gallery</label>
-      <input type="file" id="featuredImageInput" accept="image/*">
-      <p id="featuredCompressStatus" class="form-hint hidden"></p>
-      <div id="featuredImgPreviewWrap" class="hidden" style="margin-top:8px; text-align:center;">
-        <img id="featuredImgPreview" src="" alt="Page excerpt preview" style="max-height:180px; border-radius:8px; border:1px solid var(--border);">
+      <label>1. Select page photo from gallery (optional)</label>
+      <input type="file" id="reviewImageInput" accept="image/*">
+      <p id="reviewCompressStatus" class="form-hint hidden"></p>
+      <div id="reviewImgPreviewWrap" class="hidden" style="margin-top:8px; text-align:center; position:relative;">
+        <img id="reviewImgPreview" src="" alt="Page excerpt preview" style="max-height:180px; border-radius:8px; border:1px solid var(--border);">
+        <button id="clearReviewImgBtn" type="button" class="btn btn-ghost" style="margin-top:4px; font-size:0.75rem; padding:4px 8px;">✕ Remove photo</button>
       </div>
     </div>
 
     <div class="field">
-      <label>2. Search &amp; mention book from library</label>
-      <input type="search" id="featuredBookSearch" placeholder="Type book name or writer...">
-      <div id="featuredBookSearchResults" class="card-list" style="max-height:160px; overflow-y:auto; margin-top:6px;"></div>
-      <input type="hidden" id="selectedFeaturedBookId">
-      <p id="selectedFeaturedBookLabel" class="form-hint" style="color:var(--accent); font-weight:600; margin-top:6px;"></p>
+      <label>2. Search &amp; mention book from library <span style="color:var(--accent); font-size:0.8rem; font-weight:600;">(Mandatory)</span></label>
+      <input type="search" id="reviewBookSearch" placeholder="Type book name or writer...">
+      <div id="reviewBookSearchResults" class="card-list" style="max-height:160px; overflow-y:auto; margin-top:6px;"></div>
+      <input type="hidden" id="selectedReviewBookId">
+      <p id="selectedReviewBookLabel" class="form-hint" style="color:var(--accent); font-weight:600; margin-top:6px;"></p>
     </div>
 
     <div class="field">
       <label>3. Add writings / thoughts (optional)</label>
-      <textarea id="featuredCaptionInput" rows="3" placeholder="Write a caption, note, or quote about this page..."></textarea>
+      <textarea id="reviewCaptionInput" rows="3" placeholder="Write a review, quote, or note about this book..."></textarea>
     </div>
 
-    <p class="form-error" id="postFeaturedError"></p>
-    <button id="confirmPostFeaturedBtn" class="btn btn-primary btn-wide" disabled>Confirm &amp; Post to Featured</button>
+    <p class="form-error" id="postReviewError"></p>
+    <button id="confirmPostReviewBtn" class="btn btn-primary btn-wide" disabled>Confirm &amp; Post Review</button>
   </div>
 </div>
 
-<!-- FEATURED ZOOM MODAL (FB Stories Style Overlay) (#2 & #16) -->
-<div id="featuredZoomModal" class="modal hidden story-modal-overlay">
-  <div class="story-backdrop" id="closeFeaturedZoomBackdrop"></div>
+<!-- REVIEW ZOOM MODAL (Stories Style Overlay) (#2 & #16) -->
+<div id="reviewZoomModal" class="modal hidden story-modal-overlay">
+  <div class="story-backdrop" id="closeReviewZoomBackdrop"></div>
   <div class="story-container">
     <div class="story-header">
       <div class="story-user-info">
@@ -420,21 +428,29 @@
           <span id="storyPostTime" class="story-time-ago"></span>
         </div>
       </div>
-      <button class="modal-close story-close-btn" id="closeFeaturedZoomBtn">&times;</button>
+      <div id="storyZoomViewsWrap" style="margin-left:auto; margin-right:10px;" class="story-card-views-badge" title="Public Views">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span id="storyZoomViewsCount">0</span>
+      </div>
+      <button class="modal-close story-close-btn" id="closeReviewZoomBtn">&times;</button>
     </div>
     <div class="story-book-bar">
       <span id="storyBookName" class="story-book-name"></span>
     </div>
-    <div class="story-image-wrap">
+    <div class="story-image-wrap" id="storyImageWrap">
       <img id="zoomModalImg" src="" alt="Book page image" class="story-img">
+      <!-- Fallback text card when no image was uploaded -->
+      <div id="zoomModalTextCard" class="story-text-card hidden">
+        <img id="zoomModalCoverImg" src="" class="story-text-cover" alt="">
+        <div id="zoomModalTextBody" class="story-text-body"></div>
+      </div>
     </div>
     <div id="storyCaptionWrap" class="story-caption-wrap hidden">
       <p id="storyCaptionText" class="story-caption-text"></p>
       <button id="storyCaptionToggleBtn" class="story-caption-toggle hidden" type="button">See more</button>
     </div>
     <div class="story-footer-bar">
-      <button id="storyDeleteBtn" class="btn btn-danger hidden" style="font-size:0.8rem; padding:8px 14px;">Delete Excerpt</button>
-      <button id="storyHideBtn" class="btn btn-ghost hidden" style="font-size:0.8rem; padding:8px 14px;">Hide Excerpt</button>
+      <button id="storyDeleteBtn" class="btn btn-danger hidden" style="font-size:0.8rem; padding:8px 14px;">Delete Review</button>
       <button id="storyBorrowBtn" class="story-borrow-btn">View / Borrow Book</button>
     </div>
   </div>
@@ -457,6 +473,18 @@
     <p id="modalOwner" class="modal-sub"></p>
     <p id="modalOwnerLocation" class="modal-sub" style="color:var(--accent); font-weight:500;"></p>
     <p id="modalStatus" class="modal-status"></p>
+
+    <!-- Review Action Buttons (#3) -->
+    <div id="modalReviewActionsRow" class="modal-review-actions-row" style="display:flex; gap:8px; margin:12px 0;">
+      <button id="modalSeeReviewsBtn" type="button" class="btn btn-secondary" style="flex:1; padding:9px 12px; font-size:0.82rem; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+        <span>💬 See reviews</span>
+        <span id="modalReviewsCountBadge" class="count-badge" style="font-size:0.68rem; padding:1px 6px;">0</span>
+      </button>
+      <button id="modalAddReviewBtn" type="button" class="btn btn-primary" style="flex:1; padding:9px 12px; font-size:0.82rem; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+        <span>✍️ Add review</span>
+      </button>
+    </div>
+
     <a id="modalDownloadPdfBtn" href="#" target="_blank" rel="noopener" class="btn btn-primary btn-wide hidden" style="margin-bottom:8px;">📥 Download PDF Book</a>
     <a id="modalWhatsappBtn" class="btn btn-secondary btn-wide disabled" target="_blank" rel="noopener">Message owner on WhatsApp</a>
 
@@ -468,7 +496,6 @@
       <button id="modalRequestBtn" class="btn btn-primary btn-wide">Request to borrow</button>
     </div>
     <button id="modalCancelReqBtn" class="btn btn-ghost btn-wide hidden">Cancel request</button>
-    <button id="modalHideBookBtn" class="btn btn-ghost btn-wide hidden">Hide this book</button>
     <button id="modalDeleteBtn" class="btn btn-danger btn-wide hidden">Delete this book</button>
   </div>
 </div>
@@ -479,7 +506,7 @@
   <div class="modal-sheet small">
     <button class="modal-close" id="closeWaConfirmBtn">&times;</button>
     <h3>Confirm it's you</h3>
-    <p class="form-hint">For security, re-enter your password to reveal WhatsApp access. This action is logged for moderators.</p>
+    <p class="form-hint">For security, re-enter your password to reveal WhatsApp access. This action is logged for admin audit.</p>
     <div class="field">
       <label>Password</label>
       <input type="password" id="waConfirmPassword">
@@ -489,20 +516,13 @@
   </div>
 </div>
 
-<!-- STAFF PANEL (Admin & Moderators) (#11) -->
+<!-- STAFF PANEL (Admin only WhatsApp log) (#11) -->
 <div id="staffPanelModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet">
     <button class="modal-close" id="closeStaffPanelBtn">&times;</button>
-    <h3>Staff panel (Admin &amp; Moderators)</h3>
-    <div class="staff-tabs">
-      <button class="chip active" data-stafftab="members">Members</button>
-      <button class="chip" data-stafftab="hidden">Hidden Items</button>
-      <button class="chip" data-stafftab="log">WhatsApp log</button>
-    </div>
-    <div id="staffMembersTab"></div>
-    <div id="staffHiddenTab" class="hidden"></div>
-    <div id="staffLogTab" class="hidden"></div>
+    <h3>Admin WhatsApp Audit Log</h3>
+    <div id="staffLogTab" style="margin-top:12px;"></div>
   </div>
 </div>
 
@@ -592,17 +612,33 @@
   </div>
 </div>
 
+<!-- HEADS-UP NOTIFICATION POPUP -->
+<div id="headsUpNotif" class="heads-up-notif hidden">
+  <div class="heads-up-notif-body">
+    <div class="heads-up-notif-icon">🔔</div>
+    <div class="heads-up-notif-text">
+      <div id="headsUpTitle" class="heads-up-title">Baitul Hikmah</div>
+      <div id="headsUpBody" class="heads-up-desc">You have a new update.</div>
+    </div>
+  </div>
+  <button id="headsUpViewBtn" type="button" class="btn btn-primary" style="padding:6px 12px; font-size:0.78rem; flex-shrink:0;">View</button>
+  <button id="headsUpDismissBtn" type="button" class="icon-btn" aria-label="Dismiss" style="font-size:1.1rem; flex-shrink:0;">&times;</button>
+</div>
+
 <!-- NOTIFICATION BULLETIN MODAL (#3) -->
 <div id="notifModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-sheet notif-sheet">
     <button class="modal-close" id="closeNotifBtn">&times;</button>
-    <h3>Notifications</h3>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-right:32px;">
+      <h3 style="margin:0;">Notifications</h3>
+      <button id="testNotifBtn" type="button" class="btn btn-ghost" style="padding:4px 10px; font-size:0.75rem; border:1px solid var(--accent-dim); color:var(--accent);" title="Test phone alarm, sound & vibration">🔔 Test Sound & Alarm</button>
+    </div>
     <div id="notifList" class="notif-list empty-hint">Loading…</div>
   </div>
 </div>
 
-<!-- BOTTOM NAVIGATION (5 items: Explore - Profile - Add - Members - Featured) -->
+<!-- BOTTOM NAVIGATION (5 items: Explore - Profile - Add - Members - Reviews) -->
 <nav id="bottomNav" class="bottom-nav hidden">
   <button class="nav-btn" data-page="explore">
     <svg viewBox="0 0 24 24"><path d="M4 4h7v16H4zM13 4h7v16h-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -620,10 +656,10 @@
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Members</span>
   </button>
-  <button class="nav-btn" data-page="featured">
-    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l-3 4h12l-4-5z" fill="currentColor"/></svg>
-    <span>Featured</span>
-    <span id="featuredRedDot" class="notif-red-dot hidden"></span>
+  <button class="nav-btn" data-page="reviews">
+    <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Reviews</span>
+    <span id="reviewsRedDot" class="notif-red-dot hidden"></span>
   </button>
 </nav>
 
@@ -648,7 +684,7 @@
   <div class="modal-backdrop"></div>
   <div class="modal-sheet small">
     <button class="modal-close" id="closeInstallGuideBtn">&times;</button>
-    <h3>📲 Install Baitul Hikmah</h3>
+    <h3>Install Baitul Hikmah</h3>
     <div id="installGuideContent"></div>
     <button id="installGuideOkBtn" class="btn btn-primary btn-wide" style="margin-top:14px;">Got it!</button>
   </div>

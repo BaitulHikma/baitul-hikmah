@@ -519,8 +519,8 @@ a:hover { text-decoration: underline; }
   text-align: center;
 }
 
-/* FB STORY CARDS FOR FEATURED PAGE */
-.featured-gallery {
+/* FB STORY / REVIEW CARDS FOR REVIEWS PAGE */
+.reviews-gallery, .featured-gallery {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
@@ -534,20 +534,31 @@ a:hover { text-decoration: underline; }
   background: var(--surface);
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .story-card:active { transform: scale(0.97); }
+.story-card-text-only {
+  background: radial-gradient(circle at 80% 20%, rgba(201, 162, 75, 0.15) 0%, rgba(18, 27, 23, 0.95) 70%), #0c1410;
+  border: 1px solid rgba(201, 162, 75, 0.25);
+}
 .story-card-img {
   width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .story-card-overlay {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.65) 0%, transparent 40%, rgba(0,0,0,0.85) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 35%, rgba(0,0,0,0.88) 100%);
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 10px;
 }
+.story-card-text-only .story-card-overlay {
+  background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 25%, rgba(0,0,0,0.75) 100%);
+}
 .story-card-header {
-  display: flex; align-items: center; gap: 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
 }
 .story-card-dp {
   width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--accent); object-fit: cover; background: var(--surface-2); flex-shrink: 0;
@@ -556,6 +567,7 @@ a:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
 .story-card-name {
   font-size: 0.75rem; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
@@ -564,6 +576,30 @@ a:hover { text-decoration: underline; }
 .story-card-time {
   font-size: 0.62rem; color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 3px rgba(0,0,0,0.8);
   margin-top: 1px;
+}
+.story-card-text-preview {
+  margin: auto 0;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.story-card-quote-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.8;
+  font-family: serif;
+}
+.story-card-quote-text {
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: #e6ede8;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-style: italic;
 }
 .story-card-footer {
   display: flex;
@@ -588,11 +624,41 @@ a:hover { text-decoration: underline; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* Caption should only appear after tapping into a post (the zoom modal's
-   .story-caption-wrap below) — never as a preview on the card itself.
-   !important is required here because app.js sets a conflicting inline
-   "display" style on this element directly, which normally beats any
-   external stylesheet rule regardless of specificity. */
+   .story-caption-wrap below) — never as a preview on the card itself. */
 .story-card-caption-snippet { display: none !important; }
+
+/* STORY / REVIEWS ZOOM CAPTION & TEXT MODAL */
+.story-text-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  text-align: center;
+  background: radial-gradient(circle at 50% 30%, rgba(201, 162, 75, 0.12) 0%, rgba(12, 20, 16, 0.98) 75%);
+}
+.story-text-cover {
+  width: 90px;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 2px solid var(--accent);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.7);
+  margin-bottom: 14px;
+}
+.story-text-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #f1f5f2;
+  font-style: italic;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 0 10px;
+  word-break: break-word;
+}
 
 /* STORY / FEATURED ZOOM CAPTION */
 .story-caption-wrap {
@@ -1037,16 +1103,16 @@ a:hover { text-decoration: underline; }
   margin-left: auto;
 }
 
-/* FEATURED BOOK PAGES (#16) */
-.featured-header { margin-bottom: 12px; }
-.featured-toolbar {
+/* REVIEWS & FEATURED BOOK PAGES (#16) */
+.reviews-header, .featured-header { margin-bottom: 12px; }
+.reviews-toolbar, .featured-toolbar {
   display: flex;
   gap: 8px;
   margin-bottom: 14px;
   width: 100%;
   box-sizing: border-box;
 }
-.featured-toolbar input {
+.reviews-toolbar input, .featured-toolbar input {
   flex: 1;
   min-width: 0;
   background: var(--surface);
@@ -1056,7 +1122,7 @@ a:hover { text-decoration: underline; }
   color: var(--text);
   font-size: 16px; /* 16px prevents iOS browser auto-zoom on tap/focus */
 }
-.featured-sort-select {
+.reviews-sort-select, .featured-sort-select {
   flex-shrink: 0;
   max-width: 45%;
   background: var(--surface);
@@ -1087,8 +1153,8 @@ a:hover { text-decoration: underline; }
 .fab-btn:active { transform: scale(0.92); }
 .fab-btn svg { width: 26px; height: 26px; }
 
-/* FEATURED ZOOM MODAL (#16) */
-.featured-zoom-sheet {
+/* REVIEWS / FEATURED ZOOM MODAL (#16) */
+.review-zoom-sheet, .featured-zoom-sheet {
   background: #000;
   padding: 16px;
   max-height: 94vh;
@@ -1114,7 +1180,7 @@ a:hover { text-decoration: underline; }
 
 /* MODAL SHEETS */
 .modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
-#waConfirmModal, #staffPanelModal, #postFeaturedModal { z-index: 75; }
+#waConfirmModal, #staffPanelModal, #postReviewModal, #postFeaturedModal { z-index: 75; }
 .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.65); }
 .modal-sheet {
   position: relative;
@@ -1318,3 +1384,162 @@ a:hover { text-decoration: underline; }
 }
 .install-banner span { flex: 1; font-size: 0.82rem; color: var(--text-dim); }
 .install-banner .btn { padding: 8px 14px; font-size: 0.82rem; flex-shrink: 0; }
+
+/* STORY CARD PUBLIC VIEW COUNT BADGE */
+.story-card-views-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  margin-left: auto;
+  align-self: flex-start;
+  z-index: 4;
+}
+.story-card-views-badge svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--accent);
+}
+
+/* HEADS-UP TOP NOTIFICATION BANNER */
+.heads-up-notif {
+  position: fixed;
+  top: 14px;
+  left: 12px;
+  right: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+  z-index: 100;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(201, 162, 75, 0.25);
+  animation: slideDownIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes slideDownIn {
+  from { transform: translateY(-40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.heads-up-notif-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.heads-up-notif-icon {
+  font-size: 1.3rem;
+  animation: ringBell 0.6s ease infinite alternate;
+}
+@keyframes ringBell {
+  0% { transform: rotate(-10deg); }
+  100% { transform: rotate(10deg); }
+}
+.heads-up-notif-text {
+  flex: 1;
+  min-width: 0;
+}
+.heads-up-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heads-up-desc {
+  font-size: 0.76rem;
+  color: var(--text);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* PULSING SKELETON LOADERS */
+@keyframes skeletonPulse {
+  0% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.18; transform: scale(0.995); }
+  100% { opacity: 0.6; transform: scale(1); }
+}
+.skeleton-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+.skeleton-cover {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: var(--surface-2);
+}
+.skeleton-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skeleton-line {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+.skeleton-line.short { width: 45%; }
+.skeleton-line.medium { width: 70%; }
+.skeleton-line.long { width: 90%; }
+
+.skeleton-story-card {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+  overflow: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.skeleton-story-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skeleton-story-dp {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+.skeleton-member-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+.skeleton-dp {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+

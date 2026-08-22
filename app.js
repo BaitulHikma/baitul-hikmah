@@ -3,15 +3,17 @@
 // Plain vanilla JS. No frameworks, no build step.
 // ============================================================================
 
-// STATE
+// STATE (With instant localStorage caching)
 let currentUser = JSON.parse(localStorage.getItem('bh_user') || 'null');
-let allBooks = [];
-let allMembers = [];
-let allFeaturedPosts = [];
-let booksLoadedOnce = false;
-let membersLoadedOnce = false;
-let featuredLoadedOnce = false;
-let profileData = null;
+let allBooks = JSON.parse(localStorage.getItem('bh_cached_books') || '[]');
+let allMembers = JSON.parse(localStorage.getItem('bh_cached_members') || '[]');
+let allFeaturedPosts = JSON.parse(localStorage.getItem('bh_cached_reviews') || '[]');
+let profileData = JSON.parse(localStorage.getItem('bh_cached_profile') || 'null');
+let lastMembersData = allMembers.length ? { members: allMembers } : null;
+let lastLiveUpdateData = JSON.parse(localStorage.getItem('bh_cached_liveupdates') || 'null');
+let booksLoadedOnce = allBooks.length > 0;
+let membersLoadedOnce = allMembers.length > 0;
+let featuredLoadedOnce = allFeaturedPosts.length > 0;
 let currentExploreFilter = 'all';
 let singleBookId = null;
 let activeModalBook = null;
@@ -19,8 +21,9 @@ let editMetaContext = null;
 let pendingBookFiles = [];
 let selectedFeaturedBook = null;
 let pendingFeaturedImageB64 = '';
+let selectedReviewBookFilter = null;
 
-const PAGES = ['auth', 'profile', 'explore', 'members', 'liveupdate', 'featured', 'addbooks'];
+const PAGES = ['auth', 'profile', 'explore', 'members', 'liveupdate', 'reviews', 'featured', 'addbooks'];
 
 // HELPERS
 function $(id) { return document.getElementById(id); }
@@ -82,8 +85,131 @@ function pickEventIcon(text) {
   if (t.includes('added') || t.includes('library')) return '📚';
   if (t.includes('joined')) return '🌟';
   if (t.includes('hadith')) return '🕌';
-  if (t.includes('featured')) return '📖';
+  if (t.includes('featured') || t.includes('review')) return '📖';
   return '🔔';
+}
+
+// SKELETON LOADERS
+function getBookSkeletons() {
+  return Array(6).fill(0).map(() => `
+    <div class="skeleton-card">
+      <div class="skeleton-cover"></div>
+      <div class="skeleton-body">
+        <div class="skeleton-line long"></div>
+        <div class="skeleton-line medium"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function getMemberSkeletons() {
+  return Array(6).fill(0).map(() => `
+    <div class="skeleton-member-card">
+      <div class="skeleton-dp"></div>
+      <div style="flex:1;">
+        <div class="skeleton-line medium" style="margin-bottom:8px;"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function getReviewSkeletons() {
+  return Array(6).fill(0).map(() => `
+    <div class="skeleton-story-card">
+      <div class="skeleton-story-header">
+        <div class="skeleton-story-dp"></div>
+        <div class="skeleton-line short" style="flex:1;"></div>
+      </div>
+      <div class="skeleton-line medium"></div>
+    </div>
+  `).join('');
+}
+
+// HIGH PRIORITY NOTIFICATION ALARM SOUND & VIBRATION SYNTHESIZER
+let audioCtx = null;
+function playNotificationAlarmSound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!audioCtx || audioCtx.state === 'suspended') {
+      audioCtx = new AudioContextClass();
+    }
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+
+    // High urgency multi-stage harmonic alert siren/chime
+    const tones = [
+      { freq: 880, start: 0, dur: 0.15 },
+      { freq: 1320, start: 0.16, dur: 0.18 },
+      { freq: 1760, start: 0.36, dur: 0.35 },
+      { freq: 1320, start: 0.75, dur: 0.15 },
+      { freq: 1760, start: 0.92, dur: 0.45 }
+    ];
+
+    tones.forEach(t => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(t.freq, now + t.start);
+      gain.gain.setValueAtTime(0.001, now + t.start);
+      gain.gain.exponentialRampToValueAtTime(0.85, now + t.start + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + t.start + t.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + t.start);
+      osc.stop(now + t.start + t.dur);
+    });
+  } catch (err) {
+    console.warn('Audio alarm could not play:', err);
+  }
+
+  // Intense phone vibration pattern
+  if (navigator.vibrate) {
+    try {
+      navigator.vibrate([350, 100, 450, 100, 500, 100, 500]);
+    } catch (e) {}
+  }
+}
+
+// HEADS-UP NOTIFICATION BANNER LOGIC
+let headsUpTimer = null;
+function showHeadsUpNotification(title, body, bookId) {
+  const banner = $('headsUpNotif');
+  if (!banner) return;
+  const titleEl = $('headsUpTitle');
+  const bodyEl = $('headsUpBody');
+  const viewBtn = $('headsUpViewBtn');
+  const dismissBtn = $('headsUpDismissBtn');
+
+  if (titleEl) titleEl.textContent = title || 'Baitul Hikmah';
+  if (bodyEl) bodyEl.textContent = body || 'You have a new update.';
+
+  banner.classList.remove('hidden');
+
+  if (viewBtn) {
+    viewBtn.onclick = () => {
+      banner.classList.add('hidden');
+      if (bookId) {
+        singleBookId = bookId;
+        goPage('explore');
+      } else {
+        $('notifBellBtn').click();
+      }
+    };
+  }
+
+  if (dismissBtn) {
+    dismissBtn.onclick = () => {
+      banner.classList.add('hidden');
+    };
+  }
+
+  clearTimeout(headsUpTimer);
+  headsUpTimer = setTimeout(() => {
+    banner.classList.add('hidden');
+  }, 7000);
 }
 
 // DOUBLE-TAP GUARD
@@ -215,7 +341,7 @@ function renderPage(name) {
   if (loggedIn) {
     $('topRightAvatar').src = driveImg(currentUser.dpFileId);
     $('topRightBtn').onclick = () => goPage('profile');
-    $('staffPanelBtn').classList.toggle('hidden', !currentUser.isStaff);
+    $('staffPanelBtn').classList.toggle('hidden', !(currentUser && currentUser.isAdmin));
     checkNotifRedDot();
   }
 
@@ -225,11 +351,13 @@ function renderPage(name) {
     refreshMembers();
     refreshFullLiveUpdates();
   }
-  if (name === 'featured') {
+  if (name === 'reviews' || name === 'featured') {
     refreshFeaturedPosts();
-    $('featuredRedDot').classList.add('hidden');
+    if ($('reviewsRedDot')) $('reviewsRedDot').classList.add('hidden');
+    if ($('featuredRedDot')) $('featuredRedDot').classList.add('hidden');
     if (allFeaturedPosts.length > 0) {
       localStorage.setItem('bh_seen_featured_id', allFeaturedPosts[0].id);
+      localStorage.setItem('bh_seen_review_id', allFeaturedPosts[0].id);
     }
   }
 
@@ -355,6 +483,7 @@ async function refreshProfile() {
   try {
     const data = await api('getProfile', {});
     profileData = data;
+    localStorage.setItem('bh_cached_profile', JSON.stringify(data));
     const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
     const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
     setTxt('profileIdNum', data.profile.id);
@@ -503,16 +632,17 @@ document.querySelectorAll('#detailSquares .square-btn').forEach(btn => {
 // EXPLORE PAGE
 async function refreshBooks() {
   const isFirstLoad = !booksLoadedOnce;
-  if (isFirstLoad) $('bookGrid').innerHTML = '<p class="empty-hint">Loading…</p>';
+  if (isFirstLoad) $('bookGrid').innerHTML = getBookSkeletons();
   else renderBookGrid();
 
   try {
     const data = await api('listBooks', {});
     allBooks = data.books || [];
     booksLoadedOnce = true;
+    localStorage.setItem('bh_cached_books', JSON.stringify(allBooks));
 
     const totalEl = $('exploreTotalCount');
-    if (totalEl) totalEl.textContent = 'Total: ' + allBooks.length + ' book' + (allBooks.length === 1 ? '' : 's');
+    if (totalEl) totalEl.textContent = allBooks.length;
 
     if (singleBookId) {
       document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
@@ -547,18 +677,21 @@ function renderBookGrid() {
   const q = $('bookSearch').value.trim().toLowerCase();
   let list = allBooks.slice();
 
-  // Hide hidden books for non-staff users unless owned
-  const isStaff = currentUser && currentUser.isStaff;
-  list = list.filter(b => !b.hidden || isStaff || b.isMine);
-
   if (singleBookId) {
     list = list.filter(b => b.bookId === singleBookId);
   } else {
-    if (currentExploreFilter === 'mine') list = list.filter(b => b.isMine);
-    else if (currentExploreFilter === 'lent') list = list.filter(b => b.isMine && b.status === 'borrowed');
-    else if (currentExploreFilter === 'requesting') list = list.filter(b => !!b.myPendingRequestId);
-    else if (currentExploreFilter === 'requested') list = list.filter(b => !!b.myPendingRequestId);
-    else if (currentExploreFilter === 'borrowed') {
+    if (currentExploreFilter === 'mine') {
+      list = list.filter(b => b.isMine);
+    } else if (currentExploreFilter === 'lent') {
+      const lentOutIds = (profileData && profileData.lentOutBooks || []).map(r => r.bookId);
+      list = list.filter(b => b.isMine && (b.status === 'borrowed' || (b.status !== 'available' && !b.isPdf) || !!b.borrowerName || lentOutIds.includes(b.bookId)));
+    } else if (currentExploreFilter === 'requesting') {
+      const outgoingIds = (profileData && profileData.outgoingRequests || []).map(r => r.bookId);
+      list = list.filter(b => !!b.myPendingRequestId || outgoingIds.includes(b.bookId));
+    } else if (currentExploreFilter === 'requested') {
+      const incomingIds = (profileData && profileData.incomingRequests || []).map(r => r.bookId);
+      list = list.filter(b => b.isMine && incomingIds.includes(b.bookId));
+    } else if (currentExploreFilter === 'borrowed') {
       const borrowedIds = (profileData && profileData.borrowedBooks || []).map(r => r.bookId);
       list = list.filter(b => borrowedIds.includes(b.bookId));
     }
@@ -585,7 +718,6 @@ function renderBookGrid() {
           : 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + escapeHtml(b.borrowerName) : ''));
     const statusClass = isPdf ? 'available' : (b.status === 'available' ? 'available' : 'unavailable');
     const pageBadge = b.pageCount ? `<div class="page-count-badge">${escapeHtml(String(b.pageCount))}p</div>` : '';
-    const hiddenBadge = (isStaff && b.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
 
     return `<div class="book-card" onclick="openBookModal('${b.bookId}')">
       <div class="book-cover-wrap" style="position:relative;">
@@ -596,7 +728,7 @@ function renderBookGrid() {
         </div>
       </div>
       <div class="book-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}${hiddenBadge}</div>
+        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
         <div class="sub">${escapeHtml(b.writer || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
@@ -642,6 +774,40 @@ window.openBookModal = (bookId) => {
       }
     }
 
+    // Review actions on Book Detail Modal (#3)
+    const matchingReviews = allFeaturedPosts.filter(p =>
+      (p.bookId && String(p.bookId) === String(b.bookId)) ||
+      (p.bookName && b.bookName && String(p.bookName).trim().toLowerCase() === String(b.bookName).trim().toLowerCase())
+    );
+
+    const seeReviewsBtn = $('modalSeeReviewsBtn');
+    const reviewsBadge = $('modalReviewsCountBadge');
+    const addReviewBtn = $('modalAddReviewBtn');
+
+    if (seeReviewsBtn && reviewsBadge) {
+      if (matchingReviews.length > 0) {
+        seeReviewsBtn.classList.remove('hidden');
+        reviewsBadge.textContent = matchingReviews.length;
+        seeReviewsBtn.onclick = () => {
+          $('bookModal').classList.add('hidden');
+          selectedReviewBookFilter = b;
+          goPage('reviews');
+        };
+      } else {
+        seeReviewsBtn.classList.add('hidden');
+      }
+    }
+
+    if (addReviewBtn) {
+      addReviewBtn.onclick = () => {
+        $('bookModal').classList.add('hidden');
+        goPage('reviews');
+        setTimeout(() => {
+          openAddReviewForBook(b);
+        }, 50);
+      };
+    }
+
     renderModalStatusArea(b);
   } catch (err) {
     showToast('Could not load full details.');
@@ -655,7 +821,6 @@ function renderModalStatusArea(b) {
   const deleteBtn = $('modalDeleteBtn');
   const editIcon = $('modalEditIconBtn');
   const waBtn = $('modalWhatsappBtn');
-  const hideBtn = $('modalHideBookBtn');
 
   borrowArea.classList.add('hidden');
   cancelBtn.classList.add('hidden');
@@ -665,13 +830,6 @@ function renderModalStatusArea(b) {
   waBtn.removeAttribute('href');
 
   const isPdfBook = b.isPdf || (b.downloadLink && String(b.downloadLink).trim().length > 5);
-
-  if (currentUser && currentUser.isStaff) {
-    hideBtn.classList.remove('hidden');
-    hideBtn.textContent = b.hidden ? 'Unhide this book' : 'Hide this book';
-  } else {
-    hideBtn.classList.add('hidden');
-  }
 
   if (isPdfBook) {
     waBtn.classList.add('hidden');
@@ -689,7 +847,6 @@ function renderModalStatusArea(b) {
     deleteBtn.classList.remove('hidden');
   } else if (isPdfBook) {
     statusEl.textContent = 'Digital PDF edition available for instant download.';
-    // PDF books do NOT have "Request to borrow"
   } else if (b.status !== 'available') {
     statusEl.textContent = 'Unavailable till ' + formatDate(b.dueDate) + (b.borrowerName ? ' · with ' + b.borrowerName : '');
   } else if (b.myPendingRequestId) {
@@ -702,37 +859,26 @@ function renderModalStatusArea(b) {
   }
 }
 
-$('closeModalBtn').onclick = () => $('bookModal').classList.add('hidden');
-$('bookModal').querySelector('.modal-backdrop').onclick = () => $('bookModal').classList.add('hidden');
+if ($('closeModalBtn')) $('closeModalBtn').onclick = () => $('bookModal').classList.add('hidden');
+if ($('bookModal') && $('bookModal').querySelector('.modal-backdrop')) {
+  $('bookModal').querySelector('.modal-backdrop').onclick = () => $('bookModal').classList.add('hidden');
+}
 
-$('modalWhatsappBtn').onclick = (e) => {
-  e.preventDefault();
-  if ($('modalWhatsappBtn').classList.contains('disabled')) return;
-  $('waConfirmPassword').value = '';
-  $('waConfirmError').textContent = '';
-  $('waConfirmModal').classList.remove('hidden');
-  $('waConfirmPassword').focus();
-};
+if ($('modalWhatsappBtn')) {
+  $('modalWhatsappBtn').onclick = (e) => {
+    e.preventDefault();
+    if ($('modalWhatsappBtn').classList.contains('disabled')) return;
+    $('waConfirmPassword').value = '';
+    $('waConfirmError').textContent = '';
+    $('waConfirmModal').classList.remove('hidden');
+    $('waConfirmPassword').focus();
+  };
+}
 
-$('modalHideBookBtn').onclick = (e) => guardedAction('hidebook', e.target, async () => {
-  if (!activeModalBook) return;
-  const b = activeModalBook;
-  const newHidden = !b.hidden;
-  b.hidden = newHidden;
-  renderModalStatusArea(b);
-  try {
-    await api('setHidden', { targetType: 'book', targetId: b.bookId, hidden: newHidden });
-    showToast(newHidden ? 'Book hidden from public library.' : 'Book is visible in public library.');
-    refreshBooks();
-  } catch (err) {
-    b.hidden = !newHidden;
-    renderModalStatusArea(b);
-    throw err;
-  }
-});
-
-$('closeWaConfirmBtn').onclick = () => $('waConfirmModal').classList.add('hidden');
-$('waConfirmModal').querySelector('.modal-backdrop').onclick = () => $('waConfirmModal').classList.add('hidden');
+if ($('closeWaConfirmBtn')) $('closeWaConfirmBtn').onclick = () => $('waConfirmModal').classList.add('hidden');
+if ($('waConfirmModal') && $('waConfirmModal').querySelector('.modal-backdrop')) {
+  $('waConfirmModal').querySelector('.modal-backdrop').onclick = () => $('waConfirmModal').classList.add('hidden');
+}
 
 $('waConfirmSubmitBtn').onclick = (e) => guardedAction('waconfirm', e.target, async () => {
   $('waConfirmError').textContent = '';
@@ -811,8 +957,6 @@ $('modalEditIconBtn').onclick = () => {
 };
 
 // MEMBERS PAGE
-let lastMembersData = null;
-
 if ($('membersTabBtn')) {
   $('membersTabBtn').onclick = () => {
     $('membersTabBtn').classList.add('active');
@@ -834,13 +978,9 @@ if ($('liveUpdateTabBtn')) {
 
 function renderMembersUI(data) {
   allMembers = data.members || [];
-  const isStaff = currentUser && currentUser.isStaff;
 
   const totalEl = $('membersTotalCount');
   if (totalEl) totalEl.textContent = (data.totalMembersCount || allMembers.length);
-
-  // Filter hidden users for non-staff members (#11)
-  const visibleMembers = allMembers.filter(m => !m.hidden || isStaff);
 
   const lb = data.leaderboard || {};
   const lbParts = [];
@@ -851,21 +991,19 @@ function renderMembersUI(data) {
   if (lbParts.length) { lbEl.classList.remove('hidden'); lbEl.innerHTML = lbParts.join(''); }
   else { lbEl.classList.add('hidden'); }
 
-  $('membersList').innerHTML = visibleMembers.map(m => {
+  $('membersList').innerHTML = allMembers.map(m => {
     const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
     const isSelf = currentUser && String(m.id) === String(currentUser.id);
-    const hiddenTag = (isStaff && m.hidden) ? ' <span class="role-badge hidden-badge">HIDDEN</span>' : '';
-    const clickHandler = isStaff ? `onclick="openMemberDetailModal('${m.id}')" style="cursor:pointer;"` : '';
     const statsText = (m.ownedBooks != null) ? `Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}` : `Role: ${m.role || 'Member'}`;
 
     return `
-    <div class="member-card" ${clickHandler}>
+    <div class="member-card" onclick="openMemberDetailModal('${m.id}')" style="cursor:pointer;">
       <div class="dp-wrap">
         <img src="${driveImg(m.dpFileId)}" alt="">
         <span class="level-badge" title="Level ${m.level}">Lv ${m.level || 1}</span>
       </div>
       <div class="member-body">
-        <div class="name">${escapeHtml(m.displayName || m.name)}${hiddenTag}</div>
+        <div class="name">${escapeHtml(m.displayName || m.name)}</div>
         ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
         <div class="stats">${statsText}</div>
       </div>
@@ -875,13 +1013,10 @@ function renderMembersUI(data) {
 }
 
 window.openMemberDetailModal = (memberId) => {
-  const m = allMembers.find(x => x.id === memberId) || (lastStaffPanelData && lastStaffPanelData.members && lastStaffPanelData.members.find(x => x.id === memberId));
+  const m = allMembers.find(x => x.id === memberId);
   if (!m) return;
   const content = $('memberDetailContent');
   if (!content) return;
-
-  const isStaff = currentUser && currentUser.isStaff;
-  const isAdmin = currentUser && currentUser.isAdmin;
 
   content.innerHTML = `
     <div style="text-align:center; margin-bottom:12px;">
@@ -889,21 +1024,11 @@ window.openMemberDetailModal = (memberId) => {
       <h4 style="margin:8px 0 2px;">${escapeHtml(m.displayName || m.name)}</h4>
       <p style="color:var(--text-dim); font-size:0.8rem; margin:0;">ID: ${escapeHtml(m.id)}</p>
     </div>
-    <div class="member-detail-row"><span class="member-detail-label">Email:</span><span class="member-detail-val">${escapeHtml(m.email || '—')}</span></div>
-    <div class="member-detail-row"><span class="member-detail-label">WhatsApp:</span><span class="member-detail-val">${escapeHtml(m.whatsapp || '—')}</span></div>
     <div class="member-detail-row"><span class="member-detail-label">City:</span><span class="member-detail-val">${escapeHtml(m.city || '—')}</span></div>
     <div class="member-detail-row"><span class="member-detail-label">Near Area:</span><span class="member-detail-val">${escapeHtml(m.area || '—')}</span></div>
     <div class="member-detail-row"><span class="member-detail-label">Bio:</span><span class="member-detail-val">${escapeHtml(m.bio || '—')}</span></div>
-    <div class="member-detail-row"><span class="member-detail-label">Reference:</span><span class="member-detail-val">${escapeHtml(m.reference || '—')}</span></div>
     <div class="member-detail-row"><span class="member-detail-label">Joined:</span><span class="member-detail-val">${formatDate(m.joinedAt) || '—'}</span></div>
-    <div class="member-detail-row"><span class="member-detail-label">Role:</span><span class="member-detail-val">${m.role ? m.role.toUpperCase() : 'Member'}</span></div>
-    <div class="member-detail-row"><span class="member-detail-label">Status:</span><span class="member-detail-val">${m.hidden ? 'HIDDEN' : 'Active'}</span></div>
-    ${isStaff ? `
-      <div style="margin-top:16px; display:flex; gap:8px;">
-        ${isAdmin ? `<button class="btn btn-secondary btn-wide" onclick="toggleModerator(this,'${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove Mod' : 'Make Mod'}</button>` : ''}
-        <button class="btn btn-ghost btn-wide" onclick="toggleHidden(this,'user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide User' : 'Hide User'}</button>
-      </div>
-    ` : ''}
+    <div class="member-detail-row"><span class="member-detail-label">Level:</span><span class="member-detail-val">Lv ${m.level || 1}</span></div>
   `;
   if ($('memberDetailModal')) $('memberDetailModal').classList.remove('hidden');
 };
@@ -915,13 +1040,14 @@ if ($('memberDetailModal') && $('memberDetailModal').querySelector('.modal-backd
 
 async function refreshMembers() {
   const isFirstLoad = !membersLoadedOnce;
-  if (isFirstLoad) $('membersList').innerHTML = '<p class="empty-hint">Loading members…</p>';
+  if (isFirstLoad) $('membersList').innerHTML = getMemberSkeletons();
   else if (lastMembersData) renderMembersUI(lastMembersData);
 
   try {
     const data = await api('listMembers', {});
     lastMembersData = data;
     membersLoadedOnce = true;
+    localStorage.setItem('bh_cached_members', JSON.stringify(data.members || []));
     renderMembersUI(data);
   } catch (err) {
     if (isFirstLoad) { showToast(err.message); $('membersList').innerHTML = ''; }
@@ -937,7 +1063,6 @@ window.sendSalam = (btn, targetId) => guardedAction('salam-' + targetId, btn, as
 });
 
 // FULL LIVE UPDATE PAGE (#15)
-let lastLiveUpdateData = null;
 let liveUpdateDrawerExpanded = false;
 let liveUpdateRotateInterval = null;
 let liveUpdateCurrentIndex = 0;
@@ -1030,11 +1155,13 @@ async function refreshFullLiveUpdates() {
   }
 }
 
-// FEATURED BOOK PAGES (#16 & #18)
+// REVIEWS / FEATURED BOOK PAGES (#16 & #18)
 async function refreshFeaturedPosts() {
-  const container = $('featuredGallery');
+  const container = $('reviewsGallery') || $('featuredGallery');
+  if (!container) return;
+
   if (!featuredLoadedOnce) {
-    container.innerHTML = `<div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-text"></div></div><div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-text"></div></div>`;
+    container.innerHTML = getReviewSkeletons();
   } else {
     renderFeaturedGallery();
   }
@@ -1043,23 +1170,35 @@ async function refreshFeaturedPosts() {
     const data = await api('getFeaturedPosts', {});
     allFeaturedPosts = data.posts || [];
     featuredLoadedOnce = true;
+    localStorage.setItem('bh_cached_reviews', JSON.stringify(allFeaturedPosts));
 
-    // Check for unread featured posts for dot indicator
-    const lastSeenId = localStorage.getItem('bh_seen_featured_id');
+    // Check for unread review posts for dot indicator
+    const lastSeenId = localStorage.getItem('bh_seen_review_id') || localStorage.getItem('bh_seen_featured_id');
     if (allFeaturedPosts.length > 0 && allFeaturedPosts[0].id !== lastSeenId) {
-      if (location.hash !== '#featured') {
-        $('featuredRedDot').classList.remove('hidden');
+      if (location.hash !== '#reviews' && location.hash !== '#featured') {
+        if ($('reviewsRedDot')) $('reviewsRedDot').classList.remove('hidden');
+        if ($('featuredRedDot')) $('featuredRedDot').classList.remove('hidden');
       }
     }
 
     renderFeaturedGallery();
   } catch (err) {
-    if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">No featured posts yet.</p>';
+    if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">No reviews yet.</p>';
   }
 }
 
-$('featuredSearch').oninput = () => renderFeaturedGallery();
-$('featuredSort').onchange = () => renderFeaturedGallery();
+if ($('reviewsSearch')) $('reviewsSearch').oninput = () => renderFeaturedGallery();
+if ($('featuredSearch')) $('featuredSearch').oninput = () => renderFeaturedGallery();
+if ($('reviewsSort')) $('reviewsSort').onchange = () => renderFeaturedGallery();
+if ($('featuredSort')) $('featuredSort').onchange = () => renderFeaturedGallery();
+
+if ($('clearReviewBookFilterBtn')) {
+  $('clearReviewBookFilterBtn').onclick = () => {
+    selectedReviewBookFilter = null;
+    if ($('reviewBookFilterBanner')) $('reviewBookFilterBanner').classList.add('hidden');
+    renderFeaturedGallery();
+  };
+}
 
 window.toggleCardCaption = (btn, postId) => {
   const p = allFeaturedPosts.find(x => x.id === postId);
@@ -1076,15 +1215,35 @@ window.toggleCardCaption = (btn, postId) => {
 };
 
 function renderFeaturedGallery() {
-  const q = $('featuredSearch').value.trim().toLowerCase();
-  const sort = $('featuredSort').value;
+  const searchInput = $('reviewsSearch') || $('featuredSearch');
+  const sortSelect = $('reviewsSort') || $('featuredSort');
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const sort = sortSelect ? sortSelect.value : 'newest';
+
   let list = allFeaturedPosts.slice();
+
+  // Filter by specific book if navigated from Book Detail Modal (#3)
+  if (selectedReviewBookFilter) {
+    const filterBanner = $('reviewBookFilterBanner');
+    const filterName = $('reviewFilterBookName');
+    if (filterBanner && filterName) {
+      filterName.textContent = selectedReviewBookFilter.bookName || 'Selected Book';
+      filterBanner.classList.remove('hidden');
+    }
+    list = list.filter(p =>
+      (p.bookId && String(p.bookId) === String(selectedReviewBookFilter.bookId)) ||
+      (p.bookName && selectedReviewBookFilter.bookName && String(p.bookName).trim().toLowerCase() === String(selectedReviewBookFilter.bookName).trim().toLowerCase())
+    );
+  } else {
+    if ($('reviewBookFilterBanner')) $('reviewBookFilterBanner').classList.add('hidden');
+  }
 
   if (q) {
     list = list.filter(p =>
       String(p.bookName || '').toLowerCase().includes(q) ||
       String(p.writer || '').toLowerCase().includes(q) ||
-      String(p.memberName || '').toLowerCase().includes(q)
+      String(p.memberName || '').toLowerCase().includes(q) ||
+      String(p.caption || '').toLowerCase().includes(q)
     );
   }
 
@@ -1096,25 +1255,58 @@ function renderFeaturedGallery() {
     list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 
-  const gallery = $('featuredGallery');
+  if ($('reviewsTotalCount')) $('reviewsTotalCount').textContent = list.length;
+
+  const gallery = $('reviewsGallery') || $('featuredGallery');
+  if (!gallery) return;
+
   if (!list.length) {
-    gallery.innerHTML = '<p class="empty-hint">No featured book pages found.</p>';
+    gallery.innerHTML = selectedReviewBookFilter
+      ? `<p class="empty-hint">No reviews found for "${escapeHtml(selectedReviewBookFilter.bookName)}".</p>`
+      : '<p class="empty-hint">No reviews found. Be the first to share one!</p>';
     return;
   }
 
   gallery.innerHTML = list.map(p => {
     const posterDp = driveImg(p.posterDpFileId);
-    const mainImg = driveImg(p.imageFileId);
+    const hasPhoto = !!(p.imageFileId && String(p.imageFileId).trim().length > 0);
+    const mainImg = hasPhoto ? driveImg(p.imageFileId) : '';
     const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
     const coverThumb = coverFileId ? driveImg(coverFileId) : '';
     const captionVal = (p.caption || p.Caption || '').trim();
-    const captionSnippet = captionVal
-      ? `<div class="story-card-caption-snippet" style="font-size:0.72rem; color:rgba(255,255,255,0.9); line-height:1.25; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-shadow:0 1px 3px rgba(0,0,0,0.9);">${escapeHtml(captionVal)}</div>`
-      : '';
+    const viewsCount = parseInt(p.views, 10) || 0;
 
+    const viewsBadge = `
+      <div class="story-card-views-badge" title="${viewsCount} views">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>${viewsCount}</span>
+      </div>`;
+
+    if (hasPhoto) {
+      return `
+      <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
+        <img class="story-card-img" src="${mainImg}" alt="">
+        <div class="story-card-overlay">
+          <div class="story-card-header">
+            <img class="story-card-dp" src="${posterDp}" alt="">
+            <div class="story-card-user-info">
+              <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}</span>
+              <span class="story-card-time">${timeAgo(p.createdAt)}</span>
+            </div>
+            ${viewsBadge}
+          </div>
+          <div class="story-card-footer">
+            ${coverThumb ? `<img class="story-card-book-cover" src="${coverThumb}" alt="" title="${escapeHtml(p.bookName || '')}">` : ''}
+            <div class="story-card-title">${escapeHtml(p.bookName || 'Review')}</div>
+          </div>
+        </div>
+      </div>
+      `;
+    }
+
+    // Text-only review card without page photo (#2)
     return `
-    <div class="story-card" onclick="openFeaturedZoomModal('${p.id}')">
-      <img class="story-card-img" src="${mainImg}" alt="">
+    <div class="story-card story-card-text-only" onclick="openFeaturedZoomModal('${p.id}')">
       <div class="story-card-overlay">
         <div class="story-card-header">
           <img class="story-card-dp" src="${posterDp}" alt="">
@@ -1122,15 +1314,19 @@ function renderFeaturedGallery() {
             <span class="story-card-name">${escapeHtml(p.memberName || 'Member')}</span>
             <span class="story-card-time">${timeAgo(p.createdAt)}</span>
           </div>
+          ${viewsBadge}
+        </div>
+        <div class="story-card-text-preview">
+          <div class="story-card-quote-icon">“</div>
+          <div class="story-card-quote-text">${escapeHtml(captionVal || 'Review & Thoughts on this book.')}</div>
         </div>
         <div class="story-card-footer">
           ${coverThumb ? `<img class="story-card-book-cover" src="${coverThumb}" alt="" title="${escapeHtml(p.bookName || '')}">` : ''}
-          <div class="story-card-title">${escapeHtml(p.bookName || 'Excerpt')}</div>
-          ${captionSnippet}
+          <div class="story-card-title">${escapeHtml(p.bookName || 'Review')}</div>
         </div>
       </div>
     </div>
-  `;
+    `;
   }).join('');
 }
 
@@ -1138,8 +1334,18 @@ window.openFeaturedZoomModal = (postId) => {
   const p = allFeaturedPosts.find(x => x.id === postId);
   if (!p) return;
 
+  // Track & increment view counts
+  p.views = (parseInt(p.views, 10) || 0) + 1;
+  const viewsEl = $('storyZoomViewsCount');
+  if (viewsEl) viewsEl.textContent = p.views;
+  localStorage.setItem('bh_cached_reviews', JSON.stringify(allFeaturedPosts));
+  api('incrementFeaturedView', { postId: p.id }).catch(() => {});
+
   const posterDp = driveImg(p.posterDpFileId);
-  const mainImg = driveImg(p.imageFileId);
+  const hasPhoto = !!(p.imageFileId && String(p.imageFileId).trim().length > 0);
+  const mainImg = hasPhoto ? driveImg(p.imageFileId) : '';
+  const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
+  const coverThumb = coverFileId ? driveImg(coverFileId) : '';
 
   const dpEl = $('storyPosterDp');
   if (dpEl) dpEl.src = posterDp;
@@ -1154,27 +1360,53 @@ window.openFeaturedZoomModal = (postId) => {
   if (bookEl) bookEl.textContent = 'Book: ' + (p.bookName || 'Untitled') + (p.writer ? ' (' + p.writer + ')' : '');
 
   const imgEl = $('zoomModalImg') || $('storyZoomImg');
-  if (imgEl) imgEl.src = mainImg;
+  const textCard = $('zoomModalTextCard');
+  const textCover = $('zoomModalCoverImg');
+  const textBody = $('zoomModalTextBody');
 
-  // Render Caption in Zoom Modal
+  let captionVal = String(p.caption || p.Caption || '').trim();
+  if (!captionVal) {
+    for (let k in p) {
+      if (k && (k.toLowerCase().includes('caption') || k === 'undefined' || k === '')) {
+        if (p[k] && String(p[k]).trim().length > 0 && String(p[k]).trim() !== 'undefined') {
+          captionVal = String(p[k]).trim();
+          break;
+        }
+      }
+    }
+  }
+
+  if (hasPhoto) {
+    if (imgEl) {
+      imgEl.src = mainImg;
+      imgEl.classList.remove('hidden');
+    }
+    if (textCard) textCard.classList.add('hidden');
+  } else {
+    if (imgEl) imgEl.classList.add('hidden');
+    if (textCard) {
+      textCard.classList.remove('hidden');
+      if (textCover) {
+        if (coverThumb) {
+          textCover.src = coverThumb;
+          textCover.classList.remove('hidden');
+        } else {
+          textCover.classList.add('hidden');
+        }
+      }
+      if (textBody) {
+        textBody.textContent = captionVal ? `"${captionVal}"` : 'Book review by ' + (p.memberName || 'a member') + '.';
+      }
+    }
+  }
+
+  // Render Caption below photo in Zoom Modal
   const captionWrap = $('storyCaptionWrap');
   const captionText = $('storyCaptionText');
   const captionToggle = $('storyCaptionToggleBtn');
 
   if (captionWrap && captionText) {
-    let captionVal = String(p.caption || p.Caption || '').trim();
-    if (!captionVal) {
-      for (let k in p) {
-        if (k && (k.toLowerCase().includes('caption') || k === 'undefined' || k === '')) {
-          if (p[k] && String(p[k]).trim().length > 0 && String(p[k]).trim() !== 'undefined') {
-            captionVal = String(p[k]).trim();
-            break;
-          }
-        }
-      }
-    }
-
-    if (captionVal) {
+    if (hasPhoto && captionVal) {
       captionWrap.classList.remove('hidden');
       captionText.textContent = captionVal;
       captionText.className = 'story-caption-text clamp-2';
@@ -1207,16 +1439,18 @@ window.openFeaturedZoomModal = (postId) => {
   if (deleteBtn) {
     const isOwner = !!(currentUser && (
       (p.memberId && currentUser.id && String(p.memberId) === String(currentUser.id)) ||
-      (p.memberName && currentUser.displayName && String(p.memberName).toLowerCase() === String(currentUser.displayName).toLowerCase())
+      (p.memberName && currentUser.displayName && String(p.memberName).toLowerCase() === String(currentUser.displayName).toLowerCase()) ||
+      currentUser.isAdmin
     ));
     deleteBtn.classList.toggle('hidden', !isOwner);
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
-      if (!confirm('Delete this featured post excerpt?')) return;
+      if (!confirm('Delete this review?')) return;
       guardedAction('delfeature-' + p.id, deleteBtn, async () => {
-        if ($('featuredZoomModal')) $('featuredZoomModal').classList.add('hidden');
+        const modal = $('reviewZoomModal') || $('featuredZoomModal');
+        if (modal) modal.classList.add('hidden');
         await api('deleteFeaturedPost', { postId: p.id }).catch(err => { refreshFeaturedPosts(); throw err; });
-        showToast('Featured post deleted.');
+        showToast('Review deleted.');
         refreshFeaturedPosts();
       });
     };
@@ -1227,119 +1461,211 @@ window.openFeaturedZoomModal = (postId) => {
     borrowBtn.textContent = p.isPdf ? 'Download PDF' : 'View / Borrow Book';
     borrowBtn.onclick = (e) => {
       e.stopPropagation();
-      if ($('featuredZoomModal')) $('featuredZoomModal').classList.add('hidden');
+      const modal = $('reviewZoomModal') || $('featuredZoomModal');
+      if (modal) modal.classList.add('hidden');
       if (p.bookId) viewBookFromProfile(p.bookId);
       else goPage('explore');
     };
   }
 
-  if ($('featuredZoomModal')) $('featuredZoomModal').classList.remove('hidden');
+  const zoomModal = $('reviewZoomModal') || $('featuredZoomModal');
+  if (zoomModal) zoomModal.classList.remove('hidden');
 };
 
-if ($('closeFeaturedZoomBtn')) $('closeFeaturedZoomBtn').onclick = () => $('featuredZoomModal').classList.add('hidden');
-if ($('closeFeaturedZoomBackdrop')) $('closeFeaturedZoomBackdrop').onclick = () => $('featuredZoomModal').classList.add('hidden');
+const closeZoomBtn = $('closeReviewZoomBtn') || $('closeFeaturedZoomBtn');
+if (closeZoomBtn) closeZoomBtn.onclick = () => {
+  const modal = $('reviewZoomModal') || $('featuredZoomModal');
+  if (modal) modal.classList.add('hidden');
+};
 
-// POST FEATURED MODAL
-if ($('openPostFeaturedBtn')) {
-  $('openPostFeaturedBtn').onclick = () => {
-    selectedFeaturedBook = null;
+const closeZoomBackdrop = $('closeReviewZoomBackdrop') || $('closeFeaturedZoomBackdrop');
+if (closeZoomBackdrop) closeZoomBackdrop.onclick = () => {
+  const modal = $('reviewZoomModal') || $('featuredZoomModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+// POST REVIEW / FEATURED MODAL
+function resetPostReviewForm() {
+  selectedFeaturedBook = null;
+  pendingFeaturedImageB64 = '';
+  const imgInput = $('reviewImageInput') || $('featuredImageInput');
+  if (imgInput) imgInput.value = '';
+  const previewWrap = $('reviewImgPreviewWrap') || $('featuredImgPreviewWrap');
+  if (previewWrap) previewWrap.classList.add('hidden');
+  const bookIdInput = $('selectedReviewBookId') || $('selectedFeaturedBookId');
+  if (bookIdInput) bookIdInput.value = '';
+  const bookLabel = $('selectedReviewBookLabel') || $('selectedFeaturedBookLabel');
+  if (bookLabel) bookLabel.textContent = '';
+  const searchInput = $('reviewBookSearch') || $('featuredBookSearch');
+  if (searchInput) searchInput.value = '';
+  const captionInput = $('reviewCaptionInput') || $('featuredCaptionInput');
+  if (captionInput) captionInput.value = '';
+  const resultsEl = $('reviewBookSearchResults') || $('featuredBookSearchResults');
+  if (resultsEl) resultsEl.innerHTML = '';
+  const errorEl = $('postReviewError') || $('postFeaturedError');
+  if (errorEl) errorEl.textContent = '';
+  validateFeaturedPostForm();
+}
+
+function openPostReviewModal() {
+  resetPostReviewForm();
+  const modal = $('postReviewModal') || $('postFeaturedModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+const openPostBtn = $('openPostReviewBtn') || $('openPostFeaturedBtn');
+if (openPostBtn) {
+  openPostBtn.onclick = () => openPostReviewModal();
+}
+
+const closePostReviewBtn = $('closePostReviewBtn') || $('closePostFeaturedBtn');
+if (closePostReviewBtn) closePostReviewBtn.onclick = () => {
+  const modal = $('postReviewModal') || $('postFeaturedModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+const postModalEl = $('postReviewModal') || $('postFeaturedModal');
+if (postModalEl && postModalEl.querySelector('.modal-backdrop')) {
+  postModalEl.querySelector('.modal-backdrop').onclick = () => postModalEl.classList.add('hidden');
+}
+
+// Remove photo button inside post review modal
+if ($('clearReviewImgBtn')) {
+  $('clearReviewImgBtn').onclick = () => {
     pendingFeaturedImageB64 = '';
-    if ($('featuredImageInput')) $('featuredImageInput').value = '';
-    if ($('featuredImgPreviewWrap')) $('featuredImgPreviewWrap').classList.add('hidden');
-    if ($('selectedFeaturedBookId')) $('selectedFeaturedBookId').value = '';
-    if ($('selectedFeaturedBookLabel')) $('selectedFeaturedBookLabel').textContent = '';
-    if ($('featuredBookSearch')) $('featuredBookSearch').value = '';
-    if ($('featuredCaptionInput')) $('featuredCaptionInput').value = '';
-    if ($('featuredBookSearchResults')) $('featuredBookSearchResults').innerHTML = '';
-    if ($('postFeaturedError')) $('postFeaturedError').textContent = '';
-    if ($('confirmPostFeaturedBtn')) $('confirmPostFeaturedBtn').disabled = true;
-    if ($('postFeaturedModal')) $('postFeaturedModal').classList.remove('hidden');
+    const imgInput = $('reviewImageInput') || $('featuredImageInput');
+    if (imgInput) imgInput.value = '';
+    const previewWrap = $('reviewImgPreviewWrap') || $('featuredImgPreviewWrap');
+    if (previewWrap) previewWrap.classList.add('hidden');
+    validateFeaturedPostForm();
   };
 }
 
-if ($('closePostFeaturedBtn')) $('closePostFeaturedBtn').onclick = () => $('postFeaturedModal').classList.add('hidden');
-if ($('postFeaturedModal') && $('postFeaturedModal').querySelector('.modal-backdrop')) {
-  $('postFeaturedModal').querySelector('.modal-backdrop').onclick = () => $('postFeaturedModal').classList.add('hidden');
+const postImgInput = $('reviewImageInput') || $('featuredImageInput');
+if (postImgInput) {
+  postImgInput.onchange = async () => {
+    const file = postImgInput.files[0];
+    if (!file) return;
+    const statusEl = $('reviewCompressStatus') || $('featuredCompressStatus');
+    if (statusEl) {
+      statusEl.classList.remove('hidden');
+      statusEl.textContent = 'Compressing image under 100KB…';
+    }
+
+    try {
+      pendingFeaturedImageB64 = await compressImage(file, 100);
+      const previewImg = $('reviewImgPreview') || $('featuredImgPreview');
+      if (previewImg) previewImg.src = pendingFeaturedImageB64;
+      const previewWrap = $('reviewImgPreviewWrap') || $('featuredImgPreviewWrap');
+      if (previewWrap) previewWrap.classList.remove('hidden');
+      if (statusEl) {
+        statusEl.textContent = 'Image compressed successfully.';
+        setTimeout(() => statusEl.classList.add('hidden'), 1500);
+      }
+      validateFeaturedPostForm();
+    } catch (err) {
+      if (statusEl) statusEl.textContent = 'Error compressing image: ' + err.message;
+    }
+  };
 }
 
-$('featuredImageInput').onchange = async () => {
-  const file = $('featuredImageInput').files[0];
-  if (!file) return;
-  const statusEl = $('featuredCompressStatus');
-  statusEl.classList.remove('hidden');
-  statusEl.textContent = 'Compressing image under 100KB…';
+const postBookSearch = $('reviewBookSearch') || $('featuredBookSearch');
+if (postBookSearch) {
+  postBookSearch.oninput = () => {
+    const q = postBookSearch.value.trim().toLowerCase();
+    const resultsEl = $('reviewBookSearchResults') || $('featuredBookSearchResults');
+    if (!resultsEl) return;
+    if (!q) { resultsEl.innerHTML = ''; return; }
 
-  try {
-    pendingFeaturedImageB64 = await compressImage(file, 100);
-    $('featuredImgPreview').src = pendingFeaturedImageB64;
-    $('featuredImgPreviewWrap').classList.remove('hidden');
-    statusEl.textContent = 'Image compressed successfully.';
-    validateFeaturedPostForm();
-  } catch (err) {
-    statusEl.textContent = 'Error compressing image: ' + err.message;
-  }
-};
+    const matches = allBooks.filter(b =>
+      String(b.bookName || '').toLowerCase().includes(q) ||
+      String(b.writer || '').toLowerCase().includes(q)
+    ).slice(0, 5);
 
-$('featuredBookSearch').oninput = () => {
-  const q = $('featuredBookSearch').value.trim().toLowerCase();
-  const resultsEl = $('featuredBookSearchResults');
-  if (!q) { resultsEl.innerHTML = ''; return; }
+    if (!matches.length) {
+      resultsEl.innerHTML = '<p class="empty-hint" style="padding:8px 0; margin:0;">No matching book found in library.</p>';
+      return;
+    }
 
-  const matches = allBooks.filter(b =>
-    String(b.bookName || '').toLowerCase().includes(q) ||
-    String(b.writer || '').toLowerCase().includes(q)
-  ).slice(0, 5);
-
-  if (!matches.length) {
-    resultsEl.innerHTML = '<p class="empty-hint">No matching book found in library.</p>';
-    return;
-  }
-
-  resultsEl.innerHTML = matches.map(b => `
-    <div class="req-card" style="cursor:pointer;" onclick="selectBookForFeatured('${b.bookId}')">
-      <img src="${driveImg(b.imageFileId)}" alt="">
-      <div class="req-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
-        <div class="meta">${escapeHtml(b.writer || '')}</div>
+    resultsEl.innerHTML = matches.map(b => `
+      <div class="req-card" style="cursor:pointer;" onclick="selectBookForFeatured('${b.bookId}')">
+        <img src="${driveImg(b.imageFileId)}" alt="">
+        <div class="req-card-body">
+          <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
+          <div class="meta">${escapeHtml(b.writer || '')}</div>
+        </div>
       </div>
-    </div>
-  `).join('');
-};
+    `).join('');
+  };
+}
 
 window.selectBookForFeatured = (bookId) => {
   const b = allBooks.find(x => x.bookId === bookId);
   if (!b) return;
   selectedFeaturedBook = b;
-  $('selectedFeaturedBookId').value = b.bookId;
-  $('selectedFeaturedBookLabel').textContent = 'Mentioned: ' + b.bookName + (b.writer ? ' (' + b.writer + ')' : '');
-  $('featuredBookSearchResults').innerHTML = '';
+
+  // Auto-populate the search input with full book name (#4)
+  const searchInput = $('reviewBookSearch') || $('featuredBookSearch');
+  if (searchInput) searchInput.value = b.bookName || '';
+
+  const idInput = $('selectedReviewBookId') || $('selectedFeaturedBookId');
+  if (idInput) idInput.value = b.bookId;
+
+  const label = $('selectedReviewBookLabel') || $('selectedFeaturedBookLabel');
+  if (label) label.textContent = '✓ Mentioned: ' + b.bookName + (b.writer ? ' (' + b.writer + ')' : '');
+
+  const resultsEl = $('reviewBookSearchResults') || $('featuredBookSearchResults');
+  if (resultsEl) resultsEl.innerHTML = '';
+
   validateFeaturedPostForm();
 };
 
-function validateFeaturedPostForm() {
-  const ok = pendingFeaturedImageB64 && selectedFeaturedBook;
-  $('confirmPostFeaturedBtn').disabled = !ok;
+// Open Add Review Modal directly for a specific book (#3)
+function openAddReviewForBook(b) {
+  openPostReviewModal();
+  selectBookForFeatured(b.bookId);
 }
 
-$('confirmPostFeaturedBtn').onclick = (e) => guardedAction('postfeatured', e.target, async () => {
-  if (!pendingFeaturedImageB64 || !selectedFeaturedBook) return;
-  $('postFeaturedError').textContent = '';
+function validateFeaturedPostForm() {
+  // Mentioning a book is mandatory, photo and writings are optional (#2)
+  const ok = !!selectedFeaturedBook;
+  const btn = $('confirmPostReviewBtn') || $('confirmPostFeaturedBtn');
+  if (btn) btn.disabled = !ok;
+}
 
-  const caption = $('featuredCaptionInput') ? $('featuredCaptionInput').value.trim() : '';
+const confirmPostBtn = $('confirmPostReviewBtn') || $('confirmPostFeaturedBtn');
+if (confirmPostBtn) {
+  confirmPostBtn.onclick = (e) => guardedAction('postreview', e.target, async () => {
+    if (!selectedFeaturedBook) {
+      const errEl = $('postReviewError') || $('postFeaturedError');
+      if (errEl) errEl.textContent = 'Please search and mention a book first.';
+      return;
+    }
 
-  await api('addFeaturedPost', {
-    imageBase64: pendingFeaturedImageB64,
-    bookId: selectedFeaturedBook.bookId,
-    bookName: selectedFeaturedBook.bookName,
-    writer: selectedFeaturedBook.writer,
-    caption: caption
-  }).catch(err => { $('postFeaturedError').textContent = err.message; throw err; });
+    const errEl = $('postReviewError') || $('postFeaturedError');
+    if (errEl) errEl.textContent = '';
 
-  $('postFeaturedModal').classList.add('hidden');
-  showToast('Posted excerpt to Featured section!');
-  refreshFeaturedPosts();
-  refreshFullLiveUpdates();
-});
+    const captionInput = $('reviewCaptionInput') || $('featuredCaptionInput');
+    const caption = captionInput ? captionInput.value.trim() : '';
+
+    await api('addFeaturedPost', {
+      imageBase64: pendingFeaturedImageB64 || '',
+      bookId: selectedFeaturedBook.bookId,
+      bookName: selectedFeaturedBook.bookName,
+      writer: selectedFeaturedBook.writer,
+      caption: caption
+    }).catch(err => {
+      if (errEl) errEl.textContent = err.message;
+      throw err;
+    });
+
+    const modal = $('postReviewModal') || $('postFeaturedModal');
+    if (modal) modal.classList.add('hidden');
+    showToast('Review posted successfully!');
+    refreshFeaturedPosts();
+    refreshFullLiveUpdates();
+  });
+}
 
 // ADD BOOKS PAGE
 let addBooksIsPdf = false;
@@ -1554,6 +1880,90 @@ $('notifBellBtn').onclick = async () => {
 $('closeNotifBtn').onclick = () => $('notifModal').classList.add('hidden');
 $('notifModal').querySelector('.modal-backdrop').onclick = () => $('notifModal').classList.add('hidden');
 
+// Test Notification button with high-priority alarm sound and vibration
+const testNotifBtn = $('testNotifBtn');
+if (testNotifBtn) {
+  testNotifBtn.onclick = (e) => guardedAction('testnotif', e.target, async () => {
+    playNotificationAlarmSound();
+    showHeadsUpNotification('Test Notification Alarm 🔔', 'Alarm sound, phone vibration & high-priority alert test successful!');
+    showToast('Testing high-priority sound & alarm...');
+    try {
+      await api('testNotification', {});
+      showToast('Live push alarm sent to device!');
+    } catch (err) {
+      showToast('Sound & vibration tested locally. (Push: ' + err.message + ')');
+    }
+  });
+}
+
+// PUSH NOTIFICATIONS & FOREGROUND FCM DISPATCH
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('./sw.js');
+
+    if (typeof firebase !== 'undefined' && typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_YOUR') === -1) {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+      }
+      const messaging = firebase.messaging();
+
+      // Foreground message received -> trigger high priority sound, vibration & heads up
+      messaging.onMessage((payload) => {
+        const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'Baitul Hikmah';
+        const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new notification!';
+        const bookId = payload.data && payload.data.bookId;
+
+        playNotificationAlarmSound();
+        showHeadsUpNotification(title, body, bookId);
+        checkNotifRedDot();
+      });
+
+      if (currentUser && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          syncPushToken(messaging, reg);
+        } else if (Notification.permission === 'default') {
+          const notifBanner = $('notifBanner');
+          if (notifBanner && !localStorage.getItem('bh_notif_banner_dismissed')) {
+            notifBanner.classList.remove('hidden');
+            $('notifBannerBtn').onclick = async () => {
+              notifBanner.classList.add('hidden');
+              const perm = await Notification.requestPermission();
+              if (perm === 'granted') {
+                syncPushToken(messaging, reg);
+                playNotificationAlarmSound();
+                showToast('Notifications & alarms enabled!');
+              }
+            };
+            $('notifBannerDismiss').onclick = () => {
+              notifBanner.classList.add('hidden');
+              localStorage.setItem('bh_notif_banner_dismissed', '1');
+            };
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('SW/Firebase init:', err);
+  }
+}
+
+async function syncPushToken(messaging, serviceWorkerRegistration) {
+  try {
+    const vapidKey = typeof FIREBASE_VAPID_KEY !== 'undefined' ? FIREBASE_VAPID_KEY : undefined;
+    const token = await messaging.getToken({ vapidKey, serviceWorkerRegistration });
+    if (token) {
+      const lastToken = localStorage.getItem('bh_push_token');
+      if (lastToken !== token) {
+        await api('savePushToken', { token }).catch(() => {});
+        localStorage.setItem('bh_push_token', token);
+      }
+    }
+  } catch (err) {
+    console.warn('Could not sync push token:', err);
+  }
+}
+
 // EDIT PROFILE
 let editProfilePendingDp = null;
 
@@ -1605,7 +2015,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 });
 $('backBtn').onclick = () => goPage('profile');
 
-// STAFF PANEL
+// STAFF PANEL (Admin WhatsApp log only)
 let lastStaffPanelData = null;
 
 $('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanelBtn'), async () => {
@@ -1617,35 +2027,11 @@ $('staffPanelBtn').onclick = () => guardedAction('openstaffpanel', $('staffPanel
     return;
   }
   lastStaffPanelData = data;
-  renderStaffMembers(data);
   renderStaffLog(data.whatsappAccessLog);
   $('staffPanelModal').classList.remove('hidden');
 });
 $('closeStaffPanelBtn').onclick = () => $('staffPanelModal').classList.add('hidden');
 $('staffPanelModal').querySelector('.modal-backdrop').onclick = () => $('staffPanelModal').classList.add('hidden');
-
-document.querySelectorAll('[data-stafftab]').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('[data-stafftab]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    $('staffMembersTab').classList.toggle('hidden', btn.dataset.stafftab !== 'members');
-    $('staffLogTab').classList.toggle('hidden', btn.dataset.stafftab !== 'log');
-  };
-});
-
-function renderStaffMembers(data) {
-  $('staffMembersTab').innerHTML = (data.members || []).map(m => `
-    <div class="req-card">
-      <div class="req-card-body">
-        <div class="name">${escapeHtml(m.displayName)} ${m.role === 'moderator' ? '<span class="role-badge">MOD</span>' : ''}${m.hidden ? '<span class="role-badge hidden-badge">HIDDEN</span>' : ''}</div>
-        <div class="meta">${escapeHtml(m.email)}</div>
-      </div>
-      <div class="req-card-actions">
-        ${data.isAdmin ? `<button class="req-cancel" onclick="toggleModerator(this,'${m.id}', ${m.role !== 'moderator'})">${m.role === 'moderator' ? 'Remove mod' : 'Make mod'}</button>` : ''}
-        <button class="req-cancel" onclick="toggleHidden(this,'user','${m.id}', ${!m.hidden})">${m.hidden ? 'Unhide' : 'Hide'}</button>
-      </div>
-    </div>`).join('');
-}
 
 function renderStaffLog(log) {
   if (!log || !log.length) { $('staffLogTab').innerHTML = '<p class="empty-hint">No WhatsApp access logged yet.</p>'; return; }
@@ -1658,50 +2044,21 @@ function renderStaffLog(log) {
     </div>`).join('');
 }
 
-window.toggleModerator = (btn, userId, makeModerator) => guardedAction('setmod-' + userId, btn, async () => {
-  const m = lastStaffPanelData.members.find(x => x.id === userId);
-  if (!m) return;
-  const prevRole = m.role;
-  m.role = makeModerator ? 'moderator' : '';
-  renderStaffMembers(lastStaffPanelData);
-  try {
-    await api('setModerator', { targetUserId: userId, makeModerator });
-  } catch (err) {
-    m.role = prevRole;
-    renderStaffMembers(lastStaffPanelData);
-    throw err;
-  }
-});
-
-window.toggleHidden = (btn, targetType, targetId, hidden) => guardedAction('sethidden-' + targetId, btn, async () => {
-  const list = targetType === 'book' ? [] : lastStaffPanelData.members;
-  const m = list.find(x => x.id === targetId);
-  const prevHidden = m ? m.hidden : null;
-  if (m) { m.hidden = hidden; renderStaffMembers(lastStaffPanelData); }
-  try {
-    await api('setHidden', { targetType, targetId, hidden });
-    showToast(hidden ? 'User hidden from public directory.' : 'User is visible in directory.');
-    refreshMembers();
-  } catch (err) {
-    if (m) { m.hidden = prevHidden; renderStaffMembers(lastStaffPanelData); }
-    throw err;
-  }
-});
-
 // BOOT
 (function boot() {
   const startHash = (location.hash || '').slice(1);
   if (currentUser) {
     renderPage(PAGES.includes(startHash) ? startHash : 'profile');
-    // Silent background pre-fetching
     setTimeout(() => {
       refreshBooks();
       refreshFeaturedPosts();
       checkNotifRedDot();
+      initPushNotifications();
     }, 100);
   } else {
     showAuthTab('loginForm');
     renderPage('auth');
+    initPushNotifications();
   }
   setTimeout(hideBootLoader, 200);
 })();
