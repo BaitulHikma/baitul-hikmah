@@ -28,6 +28,19 @@ const PAGES = ['auth', 'profile', 'explore', 'members', 'liveupdate', 'reviews',
 // HELPERS
 function $(id) { return document.getElementById(id); }
 
+function sortBooksNewestFirst(books) {
+  if (!Array.isArray(books)) return [];
+  return books.slice().sort((a, b) => {
+    const idNumA = parseInt(String(a.bookId || '').replace(/\D/g, ''), 10) || 0;
+    const idNumB = parseInt(String(b.bookId || '').replace(/\D/g, ''), 10) || 0;
+    if (idNumA !== idNumB) return idNumB - idNumA;
+    if (a.createdAt && b.createdAt) {
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    }
+    return 0;
+  });
+}
+
 function driveImg(fileId, fallback) {
   if (!fileId) return fallback || 'https://placehold.co/300x400?text=No+Image';
   return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400';
@@ -301,10 +314,16 @@ async function api(action, payload) {
 function saveSession(user) {
   currentUser = user;
   localStorage.setItem('bh_user', JSON.stringify(user));
+  if (typeof startNotificationPolling === 'function') startNotificationPolling();
+  if (typeof initPushNotifications === 'function') initPushNotifications();
 }
 function clearSession() {
   currentUser = null;
   localStorage.removeItem('bh_user');
+  if (notifPollInterval) {
+    clearInterval(notifPollInterval);
+    notifPollInterval = null;
+  }
 }
 
 function hideBootLoader() {
@@ -478,47 +497,91 @@ $('signOutBtn').onclick = () => {
 };
 
 // PROFILE PAGE
+function renderProfileView(data) {
+  if (!data || !data.profile) return;
+  const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+  const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
+
+  setTxt('profileIdNum', data.profile.id || '');
+  setTxt('profileDisplayName', data.profile.displayName || '');
+  setSrc('profileDpImg', driveImg(data.profile.dpFileId));
+  setTxt('profileLevelBadge', 'Lv ' + (data.profile.level != null ? data.profile.level : -1));
+
+  const bioEl = $('profileBioLine');
+  if (bioEl) {
+    bioEl.textContent = data.profile.bio || 'BIO........';
+    bioEl.classList.toggle('hidden', false);
+  }
+
+  setTxt('totalSuccessfulBorrows', data.totalSuccessfulBorrows || 0);
+  setTxt('totalSuccessfulReturns', data.totalSuccessfulReturns || 0);
+  setTxt('hadithStripText', data.todayHadith || '');
+
+  const hadithEl = $('hadithStrip');
+  if (hadithEl) hadithEl.classList.toggle('hidden', !data.todayHadith);
+
+  setTxt('myBooksCount', data.profile.myBooksCount || 0);
+  setTxt('borrowedCount', data.profile.borrowedCount || 0);
+  setTxt('lentOutCount', data.profile.lentOutCount || 0);
+  setTxt('cubeBookCount', data.totalBooksCount || (allBooks ? allBooks.length : 0));
+  setTxt('cubeMemberCount', data.totalMembersCount || (allMembers ? allMembers.length : 0));
+
+  renderRequestFeed('incomingRequestsList', data.incomingRequests, 'incoming');
+  renderRequestFeed('outgoingRequestsList', data.outgoingRequests, 'outgoing');
+  renderRequestFeed('borrowedList', data.borrowedBooks, 'borrowed');
+  renderRequestFeed('lentOutList', data.lentOutBooks, 'lentout');
+  renderRequestFeed('returnRequestsList', data.returnRequests, 'return');
+}
+
 async function refreshProfile() {
   if (!currentUser) return;
+
+  // 1. Instantly render from local cache if available (0ms delay)
+  if (profileData) {
+    renderProfileView(profileData);
+  } else {
+    // If no cache, populate initial preview from currentUser
+    const initialProfile = {
+      profile: {
+        id: currentUser.id || '',
+        displayName: currentUser.displayName || '',
+        dpFileId: currentUser.dpFileId || '',
+        level: currentUser.level != null ? currentUser.level : 1,
+        bio: currentUser.bio || '',
+        myBooksCount: 0,
+        borrowedCount: 0,
+        lentOutCount: 0,
+      },
+      totalSuccessfulBorrows: 0,
+      totalSuccessfulReturns: 0,
+      todayHadith: '',
+      totalBooksCount: allBooks ? allBooks.length : 0,
+      totalMembersCount: allMembers ? allMembers.length : 0,
+      incomingRequests: [],
+      outgoingRequests: [],
+      borrowedBooks: [],
+      lentOutBooks: [],
+      returnRequests: []
+    };
+    renderProfileView(initialProfile);
+  }
+
+  // 2. Add pulsing visual shimmer effect to show background sync is running
+  const profileCard = document.querySelector('.profile-header-card');
+  const totalsStrip = $('totalsStrip');
+  if (profileCard) profileCard.classList.add('profile-updating-pulse');
+  if (totalsStrip) totalsStrip.classList.add('profile-updating-pulse');
+
   try {
     const data = await api('getProfile', {});
     profileData = data;
     localStorage.setItem('bh_cached_profile', JSON.stringify(data));
-    const setTxt = (id, val) => { const el = $(id); if (el) el.textContent = val; };
-    const setSrc = (id, val) => { const el = $(id); if (el) el.src = val; };
-    setTxt('profileIdNum', data.profile.id);
-    setTxt('profileDisplayName', data.profile.displayName);
-    const firstName = (data.profile.displayName || '').split(' ')[0] || data.profile.displayName;
-    setTxt('profileGreeting', "Assalamu a'laikum, " + firstName + "! 👋");
-    setSrc('profileDpImg', driveImg(data.profile.dpFileId));
-    setTxt('profileLevelBadge', 'Lv ' + data.profile.level);
-
-    const bioEl = $('profileBioLine');
-    if (bioEl) {
-      bioEl.textContent = data.profile.bio || 'BIO........';
-      bioEl.classList.toggle('hidden', false);
-    }
-
-    setTxt('totalSuccessfulBorrows', data.totalSuccessfulBorrows || 0);
-    setTxt('totalSuccessfulReturns', data.totalSuccessfulReturns || 0);
-    setTxt('hadithStripText', data.todayHadith || '');
-
-    const hadithEl = $('hadithStrip');
-    if (hadithEl) hadithEl.classList.toggle('hidden', !data.todayHadith);
-
-    setTxt('myBooksCount', data.profile.myBooksCount || 0);
-    setTxt('borrowedCount', data.profile.borrowedCount || 0);
-    setTxt('lentOutCount', data.profile.lentOutCount || 0);
-    setTxt('cubeBookCount', data.totalBooksCount || 0);
-    setTxt('cubeMemberCount', data.totalMembersCount || 0);
-
-    renderRequestFeed('incomingRequestsList', data.incomingRequests, 'incoming');
-    renderRequestFeed('outgoingRequestsList', data.outgoingRequests, 'outgoing');
-    renderRequestFeed('borrowedList', data.borrowedBooks, 'borrowed');
-    renderRequestFeed('lentOutList', data.lentOutBooks, 'lentout');
-    renderRequestFeed('returnRequestsList', data.returnRequests, 'return');
+    renderProfileView(data);
   } catch (err) {
     showToast(err.message);
+  } finally {
+    if (profileCard) profileCard.classList.remove('profile-updating-pulse');
+    if (totalsStrip) totalsStrip.classList.remove('profile-updating-pulse');
   }
 }
 
@@ -637,7 +700,7 @@ async function refreshBooks() {
 
   try {
     const data = await api('listBooks', {});
-    allBooks = data.books || [];
+    allBooks = sortBooksNewestFirst(data.books || []);
     booksLoadedOnce = true;
     localStorage.setItem('bh_cached_books', JSON.stringify(allBooks));
 
@@ -1831,6 +1894,8 @@ $('hadiyaDownloadBtn').onclick = () => {
 
 // NOTIFICATIONS
 let lastNotifData = null;
+let knownNotifIds = null;
+let notifPollInterval = null;
 
 function renderNotifList(data) {
   if (!data.notifications || !data.notifications.length) {
@@ -1849,13 +1914,86 @@ function renderNotifList(data) {
     </div>`).join('');
 }
 
+// SYSTEM NOTIFICATION DISPATCHER (Phone Notification Shade & Lockscreen)
+async function showSystemNotification(title, body, bookId) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) {
+        return reg.showNotification(title || 'Baitul Hikmah', {
+          body: body || 'You have a new update.',
+          icon: './icons/icon-192.png',
+          badge: './icons/icon-192.png',
+          requireInteraction: true,
+          renotify: true,
+          tag: 'bh-alert-' + Date.now(),
+          vibrate: [350, 100, 450, 100, 500, 100, 500],
+          data: { url: './#profile', bookId: bookId || '' }
+        });
+      }
+    }
+    new Notification(title || 'Baitul Hikmah', {
+      body: body || 'You have a new update.',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png'
+    });
+  } catch (err) {
+    console.warn('System notification display:', err);
+  }
+}
+
+// LIVE NOTIFICATION WATCHER WITH ALARM & HEADS-UP DISPATCH
 async function checkNotifRedDot() {
   if (!currentUser) return;
   try {
     const data = await api('listNotifications', {});
+    const prevData = lastNotifData;
     lastNotifData = data;
     $('notifRedDot').classList.toggle('hidden', data.unreadCount === 0);
+
+    // Initialize known IDs from storage/memory
+    if (knownNotifIds === null) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('bh_known_notifs_' + currentUser.id) || '[]');
+        knownNotifIds = new Set(stored);
+      } catch (e) {
+        knownNotifIds = new Set();
+      }
+    }
+
+    if (data.notifications && data.notifications.length) {
+      const currentIds = data.notifications.map(n => n.id);
+      
+      // If we already had a baseline, detect newly arrived unread notifications
+      if (prevData !== null) {
+        const newUnread = data.notifications.filter(n => !n.read && !knownNotifIds.has(n.id));
+        if (newUnread.length > 0) {
+          // Play loud alarm melody and phone vibration
+          playNotificationAlarmSound();
+
+          // Show heads-up banner for top new notification
+          const topNotif = newUnread[0];
+          showHeadsUpNotification(topNotif.title, topNotif.body, topNotif.bookId);
+
+          // Dispatch real system notification to phone
+          showSystemNotification(topNotif.title, topNotif.body, topNotif.bookId);
+        }
+      }
+
+      // Mark all current notifications as seen in local registry
+      currentIds.forEach(id => knownNotifIds.add(id));
+      try {
+        localStorage.setItem('bh_known_notifs_' + currentUser.id, JSON.stringify(Array.from(knownNotifIds).slice(-100)));
+      } catch (e) {}
+    }
   } catch (err) { }
+}
+
+function startNotificationPolling() {
+  if (notifPollInterval) clearInterval(notifPollInterval);
+  checkNotifRedDot();
+  notifPollInterval = setInterval(checkNotifRedDot, 15000);
 }
 
 $('notifBellBtn').onclick = async () => {
@@ -1886,6 +2024,7 @@ if (testNotifBtn) {
   testNotifBtn.onclick = (e) => guardedAction('testnotif', e.target, async () => {
     playNotificationAlarmSound();
     showHeadsUpNotification('Test Notification Alarm 🔔', 'Alarm sound, phone vibration & high-priority alert test successful!');
+    showSystemNotification('Baitul Hikmah 🔔', 'High-priority sound, phone vibration & system notification working!');
     showToast('Testing high-priority sound & alarm...');
     try {
       await api('testNotification', {});
@@ -1895,6 +2034,165 @@ if (testNotifBtn) {
     }
   });
 }
+
+// NOTIFICATION & PHONE SETTINGS SETUP GUIDE
+function detectUserDevice() {
+  const ua = navigator.userAgent || '';
+  if (/Android/i.test(ua)) return 'android';
+  if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+  return 'desktop';
+}
+
+function selectNotifDeviceTab(device) {
+  const tabs = document.querySelectorAll('.notif-device-tab');
+  tabs.forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-device') === device);
+  });
+
+  $('notifPanelAndroid').classList.toggle('hidden', device !== 'android');
+  $('notifPanelIos').classList.toggle('hidden', device !== 'ios');
+  $('notifPanelDesktop').classList.toggle('hidden', device !== 'desktop');
+}
+
+function updateNotifSetupUI() {
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const card1 = $('notifStep1Card');
+  const badge1 = $('notifStep1Badge');
+  const status1 = $('notifStep1Status');
+  const actionWrap1 = $('notifStep1ActionWrap');
+  const blockedGuide1 = $('notifStep1BlockedGuide');
+
+  if (perm === 'granted') {
+    if (card1) {
+      card1.className = 'notif-step-card done';
+      badge1.textContent = '✓';
+      status1.textContent = '✅ Notifications are allowed on this device.';
+    }
+    if (actionWrap1) actionWrap1.classList.add('hidden');
+    if (blockedGuide1) blockedGuide1.classList.add('hidden');
+
+    const iosBtn = $('notifIosEnableBtn');
+    if (iosBtn) {
+      iosBtn.textContent = '✅ Notifications Enabled';
+      iosBtn.disabled = true;
+    }
+    const pcBtn = $('notifDesktopEnableBtn');
+    if (pcBtn) {
+      pcBtn.textContent = '✅ Notifications Enabled';
+      pcBtn.disabled = true;
+    }
+  } else if (perm === 'denied') {
+    if (card1) {
+      card1.className = 'notif-step-card active';
+      badge1.textContent = '✕';
+      status1.textContent = '❌ Notifications are blocked in browser settings.';
+    }
+    if (actionWrap1) actionWrap1.classList.add('hidden');
+    if (blockedGuide1) blockedGuide1.classList.remove('hidden');
+  } else {
+    if (card1) {
+      card1.className = 'notif-step-card active';
+      badge1.textContent = '1';
+      status1.textContent = '⚠️ Browser permission needed to send alarms and alerts.';
+    }
+    if (actionWrap1) actionWrap1.classList.remove('hidden');
+    if (blockedGuide1) blockedGuide1.classList.add('hidden');
+  }
+}
+
+function openNotificationSetupGuide(isAutoPrompt = false) {
+  if (isAutoPrompt) {
+    if (localStorage.getItem('bh_notif_guide_never') === 'true') return;
+    if ('Notification' in window && Notification.permission === 'granted') return;
+
+    let promptCount = parseInt(localStorage.getItem('bh_notif_guide_prompt_count') || '0', 10);
+    promptCount += 1;
+    localStorage.setItem('bh_notif_guide_prompt_count', String(promptCount));
+
+    // Show "Don't show these again" button on 2nd and subsequent prompts
+    if (promptCount >= 2) {
+      const neverWrap = $('notifSetupNeverWrap');
+      if (neverWrap) neverWrap.classList.remove('hidden');
+    }
+  }
+
+  // Auto select detected device
+  const detected = detectUserDevice();
+  selectNotifDeviceTab(detected);
+
+  updateNotifSetupUI();
+  const modal = $('notifSetupModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+// Hook up Device Tab switcher
+document.querySelectorAll('.notif-device-tab').forEach(tab => {
+  tab.onclick = () => {
+    const dev = tab.getAttribute('data-device');
+    selectNotifDeviceTab(dev);
+  };
+});
+
+// Hook up Setup Guide modal controls
+const openGuideBtn = $('openNotifSetupGuideBtn');
+if (openGuideBtn) {
+  openGuideBtn.onclick = () => {
+    $('notifModal').classList.add('hidden');
+    openNotificationSetupGuide(false);
+  };
+}
+
+$('closeNotifSetupBtn').onclick = () => $('notifSetupModal').classList.add('hidden');
+$('notifSetupModal').querySelector('.modal-backdrop').onclick = () => $('notifSetupModal').classList.add('hidden');
+
+$('notifSetupDoneBtn').onclick = () => {
+  $('notifSetupModal').classList.add('hidden');
+};
+
+const neverBtn = $('notifSetupNeverBtn');
+if (neverBtn) {
+  neverBtn.onclick = () => {
+    localStorage.setItem('bh_notif_guide_never', 'true');
+    $('notifSetupModal').classList.add('hidden');
+    showToast('Setup dismissed. You can reopen this anytime from Notifications ⚙️');
+  };
+}
+
+async function requestNotificationPermissionFlow() {
+  if (!('Notification' in window)) {
+    showToast('Notifications are not supported in this browser mode.');
+    return;
+  }
+  try {
+    const perm = await Notification.requestPermission();
+    updateNotifSetupUI();
+    if (perm === 'granted') {
+      playNotificationAlarmSound();
+      showToast('✅ Notifications enabled! Syncing device token...');
+      initPushNotifications();
+      showSystemNotification('Baitul Hikmah 🔔', 'Phone notifications are now connected!');
+    } else if (perm === 'denied') {
+      showToast('Notifications blocked. Follow the steps above to unblock.');
+    }
+  } catch (err) {
+    showToast('Permission error: ' + err.message);
+  }
+}
+
+$('notifGrantPermissionBtn').onclick = requestNotificationPermissionFlow;
+
+const iosEnableBtn = $('notifIosEnableBtn');
+if (iosEnableBtn) iosEnableBtn.onclick = requestNotificationPermissionFlow;
+
+const desktopEnableBtn = $('notifDesktopEnableBtn');
+if (desktopEnableBtn) desktopEnableBtn.onclick = requestNotificationPermissionFlow;
+
+$('notifTestSoundInGuideBtn').onclick = () => {
+  playNotificationAlarmSound();
+  showHeadsUpNotification('Test Notification Sound 🔔', 'Loud alarm sound, vibration & alert banner working smoothly!');
+  showSystemNotification('Baitul Hikmah 🔔', 'Test alarm & phone alert working!');
+  showToast('Sound & vibration alarm tested!');
+};
 
 // PUSH NOTIFICATIONS & FOREGROUND FCM DISPATCH
 async function initPushNotifications() {
@@ -1916,6 +2214,7 @@ async function initPushNotifications() {
 
         playNotificationAlarmSound();
         showHeadsUpNotification(title, body, bookId);
+        showSystemNotification(title, body, bookId);
         checkNotifRedDot();
       });
 
@@ -1923,24 +2222,13 @@ async function initPushNotifications() {
         if (Notification.permission === 'granted') {
           syncPushToken(messaging, reg);
         } else if (Notification.permission === 'default') {
-          const notifBanner = $('notifBanner');
-          if (notifBanner && !localStorage.getItem('bh_notif_banner_dismissed')) {
-            notifBanner.classList.remove('hidden');
-            $('notifBannerBtn').onclick = async () => {
-              notifBanner.classList.add('hidden');
-              const perm = await Notification.requestPermission();
-              if (perm === 'granted') {
-                syncPushToken(messaging, reg);
-                playNotificationAlarmSound();
-                showToast('Notifications & alarms enabled!');
-              }
-            };
-            $('notifBannerDismiss').onclick = () => {
-              notifBanner.classList.add('hidden');
-              localStorage.setItem('bh_notif_banner_dismissed', '1');
-            };
-          }
+          // Auto trigger friendly setup wizard on app open
+          setTimeout(() => openNotificationSetupGuide(true), 1200);
         }
+      }
+    } else {
+      if (currentUser && 'Notification' in window && Notification.permission === 'default') {
+        setTimeout(() => openNotificationSetupGuide(true), 1200);
       }
     }
   } catch (err) {
@@ -2044,15 +2332,39 @@ function renderStaffLog(log) {
     </div>`).join('');
 }
 
+// CUSTOMIZABLE BUTTON BACKGROUNDS (Supports local assets or Google Drive File IDs)
+function applyCustomStatBgImages() {
+  try {
+    const cfg = (typeof BH_CONFIG !== 'undefined' ? BH_CONFIG : {}) ||
+                (typeof window !== 'undefined' && window.STAT_BG_CONFIG ? window.STAT_BG_CONFIG : {});
+
+    if (cfg.myBooksImage) {
+      const btn = document.querySelector('.square-btn[data-filter="mine"]');
+      if (btn) btn.style.backgroundImage = `url("${cfg.myBooksImage.startsWith('http') || cfg.myBooksImage.startsWith('/') || cfg.myBooksImage.startsWith('assets/') ? cfg.myBooksImage : driveImg(cfg.myBooksImage)}")`;
+    }
+    if (cfg.borrowedImage) {
+      const btn = document.querySelector('.square-btn[data-filter="borrowed"]');
+      if (btn) btn.style.backgroundImage = `url("${cfg.borrowedImage.startsWith('http') || cfg.borrowedImage.startsWith('/') || cfg.borrowedImage.startsWith('assets/') ? cfg.borrowedImage : driveImg(cfg.borrowedImage)}")`;
+    }
+    if (cfg.lentOutImage) {
+      const btn = document.querySelector('.square-btn[data-filter="lent"]');
+      if (btn) btn.style.backgroundImage = `url("${cfg.lentOutImage.startsWith('http') || cfg.lentOutImage.startsWith('/') || cfg.lentOutImage.startsWith('assets/') ? cfg.lentOutImage : driveImg(cfg.lentOutImage)}")`;
+    }
+  } catch (e) {
+    console.warn('Could not set custom stat background images:', e);
+  }
+}
+
 // BOOT
 (function boot() {
+  applyCustomStatBgImages();
   const startHash = (location.hash || '').slice(1);
   if (currentUser) {
     renderPage(PAGES.includes(startHash) ? startHash : 'profile');
     setTimeout(() => {
       refreshBooks();
       refreshFeaturedPosts();
-      checkNotifRedDot();
+      startNotificationPolling();
       initPushNotifications();
     }, 100);
   } else {

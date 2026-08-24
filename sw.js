@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v6';
+const CACHE_NAME = 'baitul-hikmah-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,7 +6,10 @@ const APP_SHELL = [
   './app.js',
   './config.js',
   './firebase-config.js',
-  './manifest.json'
+  './manifest.json',
+  './assets/stat_my_books.jpg',
+  './assets/stat_borrowed.jpg',
+  './assets/stat_lent_out.jpg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -68,7 +71,7 @@ try {
         requireInteraction: true,
         renotify: true,
         tag: 'bh-notif-' + (payload.data && payload.data.timestamp ? payload.data.timestamp : Date.now()),
-        vibrate: [300, 100, 400, 100, 400, 100, 400],
+        vibrate: [350, 100, 450, 100, 500, 100, 500],
         sound: 'default',
         data: { url: './#profile' }
       });
@@ -77,6 +80,42 @@ try {
 } catch (e) {
   // Firebase optional
 }
+
+// Direct Web Push fallback
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  try {
+    const payload = event.data.json();
+    const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'Baitul Hikmah';
+    const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new update.';
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body: body,
+        icon: './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        requireInteraction: true,
+        renotify: true,
+        tag: 'bh-notif-' + Date.now(),
+        vibrate: [350, 100, 450, 100, 500, 100, 500],
+        sound: 'default',
+        data: { url: './#profile' }
+      })
+    );
+  } catch (e) {
+    // Non-json payload fallback
+    const text = event.data.text() || 'New alert from Baitul Hikmah';
+    event.waitUntil(
+      self.registration.showNotification('Baitul Hikmah', {
+        body: text,
+        icon: './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        requireInteraction: true,
+        vibrate: [350, 100, 450, 100, 500, 100, 500],
+        data: { url: './#profile' }
+      })
+    );
+  }
+});
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

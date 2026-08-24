@@ -194,8 +194,8 @@
 
   <div class="profile-header-card">
     <div class="profile-header-top-row">
-      <div class="profile-dp-wrap" id="openEditProfileBtn">
-        <img id="profileDpImg" src="" alt="">
+      <div class="profile-dp-wrap" id="openEditProfileBtn" title="Edit Profile">
+        <img id="profileDpImg" src="" alt="Profile picture">
         <span class="level-badge" id="profileLevelBadge">Lv -1</span>
         <span class="dp-edit-pen">
           <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -206,9 +206,6 @@
         <p class="profile-bio" id="profileBioLine"></p>
         <p class="id-tag" id="profileIdLine">ID: <span id="profileIdNum"></span></p>
       </div>
-    </div>
-    <div class="profile-banner-row">
-      <h3 id="profileGreeting" class="profile-greeting-text"></h3>
     </div>
   </div>
 
@@ -428,11 +425,13 @@
           <span id="storyPostTime" class="story-time-ago"></span>
         </div>
       </div>
-      <div id="storyZoomViewsWrap" style="margin-left:auto; margin-right:10px;" class="story-card-views-badge" title="Public Views">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span id="storyZoomViewsCount">0</span>
+      <div class="story-header-actions">
+        <div id="storyZoomViewsWrap" class="story-card-views-badge" title="Public Views">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span id="storyZoomViewsCount">0</span>
+        </div>
+        <button class="story-close-btn" id="closeReviewZoomBtn" aria-label="Close review">&times;</button>
       </div>
-      <button class="modal-close story-close-btn" id="closeReviewZoomBtn">&times;</button>
     </div>
     <div class="story-book-bar">
       <span id="storyBookName" class="story-book-name"></span>
@@ -630,11 +629,194 @@
   <div class="modal-backdrop"></div>
   <div class="modal-sheet notif-sheet">
     <button class="modal-close" id="closeNotifBtn">&times;</button>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-right:32px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px; padding-right:32px;">
       <h3 style="margin:0;">Notifications</h3>
-      <button id="testNotifBtn" type="button" class="btn btn-ghost" style="padding:4px 10px; font-size:0.75rem; border:1px solid var(--accent-dim); color:var(--accent);" title="Test phone alarm, sound & vibration">🔔 Test Sound & Alarm</button>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button id="openNotifSetupGuideBtn" type="button" class="btn btn-ghost" style="padding:4px 9px; font-size:0.72rem; border:1px solid var(--border); color:var(--text-dim);" title="Setup phone permissions & settings">⚙️ Setup Guide</button>
+        <button id="testNotifBtn" type="button" class="btn btn-ghost" style="padding:4px 9px; font-size:0.72rem; border:1px solid var(--accent-dim); color:var(--accent);" title="Test phone alarm, sound & vibration">🔔 Test Sound</button>
+      </div>
     </div>
     <div id="notifList" class="notif-list empty-hint">Loading…</div>
+  </div>
+</div>
+
+<!-- NOTIFICATION & PHONE SETTINGS SETUP GUIDE MODAL -->
+<div id="notifSetupModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet notif-setup-sheet">
+    <button class="modal-close" id="closeNotifSetupBtn">&times;</button>
+    <div class="notif-setup-header">
+      <div class="notif-setup-icon">🔔</div>
+      <div>
+        <h3 style="margin:0; text-align:left; font-size:1.15rem;">Phone Notifications</h3>
+        <p class="form-hint" style="margin:2px 0 0; text-align:left;">Setup alarms, sounds &amp; instant notifications for your device.</p>
+      </div>
+    </div>
+
+    <!-- Device Tabs -->
+    <div class="notif-device-tabs" id="notifDeviceTabs">
+      <button type="button" class="notif-device-tab active" data-device="android">
+        <span class="tab-icon">🤖</span> Android
+      </button>
+      <button type="button" class="notif-device-tab" data-device="ios">
+        <span class="tab-icon">🍎</span> iPhone (iOS)
+      </button>
+      <button type="button" class="notif-device-tab" data-device="desktop">
+        <span class="tab-icon">💻</span> PC / Mac
+      </button>
+    </div>
+
+    <!-- ANDROID INSTRUCTIONS PANEL -->
+    <div id="notifPanelAndroid" class="notif-device-panel">
+      <!-- Step 1: Permission -->
+      <div class="notif-step-card" id="notifStep1Card">
+        <div class="notif-step-row">
+          <div class="notif-step-badge" id="notifStep1Badge">1</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Allow Android Notifications</div>
+            <div class="notif-step-desc" id="notifStep1Status">Checking status...</div>
+          </div>
+        </div>
+        <div id="notifStep1ActionWrap" style="margin-top:10px;">
+          <button id="notifGrantPermissionBtn" type="button" class="btn btn-primary btn-wide" style="padding:8px 14px; font-size:0.84rem;">
+            🔔 Turn On Notifications
+          </button>
+        </div>
+        <div id="notifStep1BlockedGuide" class="notif-blocked-guide hidden">
+          <p style="margin:0 0 6px; font-weight:600; color:var(--danger); font-size:0.8rem;">⚠️ Notifications are currently blocked in Chrome:</p>
+          <ol style="margin:0; padding-left:18px; font-size:0.75rem; line-height:1.5; color:var(--text-dim);">
+            <li>Tap the <b>🔒 Lock icon</b> or <b>⚙️ Tune icon</b> on the address bar above.</li>
+            <li>Tap <b>Permissions</b> &rarr; set <b>Notifications</b> to <b>Allow</b>.</li>
+            <li>Or open phone <b>Settings &rarr; Apps &rarr; Chrome &rarr; Notifications &rarr; Turn On</b>.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Step 2: Battery Unrestricted Tip -->
+      <div class="notif-step-card">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">2</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Instant Delivery (Like Messenger)</div>
+            <div class="notif-step-desc">To get instant alarms even when your phone screen is locked:</div>
+          </div>
+        </div>
+        <div style="margin-top:8px; padding-left:32px;">
+          <ol style="margin:0; padding-left:14px; font-size:0.75rem; line-height:1.5; color:var(--text-dim);">
+            <li>Go to Android <b>Settings &rarr; Apps &rarr; Chrome (or Baitul Hikmah)</b>.</li>
+            <li>Tap <b>Battery</b> &rarr; select <b>"Unrestricted"</b> (prevents phone from sleeping the alerts).</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Step 3: Install App -->
+      <div class="notif-step-card notif-tip-card">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">3</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Add App to Home Screen</div>
+            <div class="notif-step-desc">Tap Chrome's 3 dots (<b>⋮</b>) &rarr; tap <b>"Install app"</b> or <b>"Add to Home screen"</b> for the best full-screen experience.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IPHONE / IOS INSTRUCTIONS PANEL -->
+    <div id="notifPanelIos" class="notif-device-panel hidden">
+      <!-- Step 1: Add to Home Screen (Mandatory for iOS Web Push) -->
+      <div class="notif-step-card active">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">1</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Add to Home Screen (Required for iOS)</div>
+            <div class="notif-step-desc">Apple iOS only delivers lockscreen notifications when added to your Home Screen:</div>
+          </div>
+        </div>
+        <div style="margin-top:8px; padding-left:32px;">
+          <ol style="margin:0; padding-left:14px; font-size:0.75rem; line-height:1.5; color:var(--text-dim);">
+            <li>In Safari, tap the <b>Share icon</b> (<b>⎘</b> square with arrow at the bottom).</li>
+            <li>Scroll down and tap <b>Add to Home Screen (+)</b> &rarr; tap <b>Add</b>.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Step 2: Open from Home Screen -->
+      <div class="notif-step-card">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">2</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Enable Notifications on iPhone</div>
+            <div class="notif-step-desc">Open <b>Baitul Hikmah</b> from your home screen and tap the notification button to enable alerts.</div>
+          </div>
+        </div>
+        <div style="margin-top:8px; padding-left:32px;">
+          <button id="notifIosEnableBtn" type="button" class="btn btn-primary btn-wide" style="padding:8px 14px; font-size:0.84rem;">
+            🔔 Request iPhone Permission
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: iOS Settings Verification -->
+      <div class="notif-step-card notif-tip-card">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">3</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">iPhone Settings Check</div>
+            <div class="notif-step-desc">Go to iPhone <b>Settings &rarr; Notifications &rarr; Baitul Hikmah</b> &rarr; ensure <b>Allow Notifications</b>, <b>Sounds</b>, and <b>Badges</b> are switched ON.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESKTOP / PC INSTRUCTIONS PANEL -->
+    <div id="notifPanelDesktop" class="notif-device-panel hidden">
+      <div class="notif-step-card" id="notifStep1CardDesktop">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">1</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Browser Notification Permission</div>
+            <div class="notif-step-desc">Click below to allow browser popups and sound alarms.</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <button id="notifDesktopEnableBtn" type="button" class="btn btn-primary btn-wide" style="padding:8px 14px; font-size:0.84rem;">
+            🔔 Enable PC Notifications
+          </button>
+        </div>
+      </div>
+      <div class="notif-step-card notif-tip-card">
+        <div class="notif-step-row">
+          <div class="notif-step-badge">2</div>
+          <div class="notif-step-info">
+            <div class="notif-step-title">Focus &amp; Do Not Disturb</div>
+            <div class="notif-step-desc">Ensure Windows "Focus assist" or macOS "Do Not Disturb" is turned off so alert banners pop up.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sound & Vibration Test (Universal) -->
+    <div class="notif-step-card" style="border-color:var(--accent-dim); margin-top:14px;">
+      <div class="notif-step-row">
+        <div class="notif-step-badge" style="background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-dim);">🔊</div>
+        <div class="notif-step-info">
+          <div class="notif-step-title">Test Phone Alarm Sound &amp; Vibration</div>
+          <div class="notif-step-desc">Verifies speaker melody, haptic vibration, and notification banner.</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button id="notifTestSoundInGuideBtn" type="button" class="btn btn-secondary btn-wide" style="padding:8px 14px; font-size:0.84rem;">
+          🔊 Test Sound, Vibration &amp; Banner
+        </button>
+      </div>
+    </div>
+
+    <div class="notif-setup-footer">
+      <button id="notifSetupDoneBtn" type="button" class="btn btn-primary btn-wide">Done</button>
+      <div id="notifSetupNeverWrap" class="notif-never-wrap hidden">
+        <button id="notifSetupNeverBtn" type="button" class="btn btn-ghost" style="font-size:0.76rem; color:var(--text-dim); text-decoration:underline;">Don't show this setup again</button>
+      </div>
+    </div>
   </div>
 </div>
 

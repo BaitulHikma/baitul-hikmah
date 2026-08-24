@@ -742,10 +742,11 @@ a:hover { text-decoration: underline; }
   object-fit: cover;
   background: var(--surface-2);
   border: 2px solid var(--accent);
+  display: block;
 }
 .profile-dp-wrap .dp-edit-pen {
   position: absolute;
-  bottom: 0px;
+  bottom: -2px;
   right: -3px;
   background: var(--accent);
   color: #1a1406;
@@ -756,6 +757,7 @@ a:hover { text-decoration: underline; }
   align-items: center;
   justify-content: center;
   border: 1.5px solid var(--bg);
+  z-index: 4;
 }
 .profile-dp-wrap .dp-edit-pen svg { width: 12px; height: 12px; }
 
@@ -779,6 +781,7 @@ a:hover { text-decoration: underline; }
   border-radius: 12px;
   border: 1.5px solid var(--bg);
   white-space: nowrap;
+  z-index: 4;
 }
 
 .cube-row { display: flex; gap: 12px; margin-bottom: 12px; }
@@ -801,21 +804,95 @@ a:hover { text-decoration: underline; }
 
 .add-book-cta { margin-bottom: 18px; }
 
+/* 3 STATS BUTTONS WITH HIGH-RES MOODY SCHOLARLY BACKGROUNDS (#6) */
 .detail-toggle-row { display: flex; gap: 10px; margin-bottom: 22px; }
 .square-btn {
   flex: 1;
   aspect-ratio: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background-color: #121c17;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(201, 162, 75, 0.35);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
   color: var(--text);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.square-num { font-size: 1.3rem; color: var(--accent); font-weight: 700; }
+.square-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 12, 10, 0.42) 0%, rgba(8, 12, 10, 0.75) 100%);
+  transition: background 0.2s ease;
+  z-index: 1;
+}
+.square-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(201, 162, 75, 0.7);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 12px rgba(201, 162, 75, 0.25);
+}
+.square-btn:hover::before {
+  background: linear-gradient(180deg, rgba(8, 12, 10, 0.3) 0%, rgba(8, 12, 10, 0.65) 100%);
+}
+.square-btn:active {
+  transform: scale(0.94);
+}
+.square-btn[data-filter="mine"] {
+  background-image: url('assets/stat_my_books.jpg');
+}
+.square-btn[data-filter="borrowed"] {
+  background-image: url('assets/stat_borrowed.jpg');
+}
+.square-btn[data-filter="lent"] {
+  background-image: url('assets/stat_lent_out.jpg');
+}
+.square-btn .square-num,
+.square-btn > span {
+  position: relative;
+  z-index: 2;
+}
+.square-num {
+  font-size: 1.55rem;
+  font-family: var(--font-display);
+  color: #fae19c;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 0 14px rgba(245, 213, 127, 0.8), 0 2px 4px rgba(0, 0, 0, 0.95);
+}
+.square-btn span:not(.square-num) {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.01em;
+}
+
+/* PROFILE PULSING EFFECT WHILE BACKGROUND SYNCING / LOADING (#4) */
+@keyframes profilePulseGlow {
+  0% { opacity: 0.65; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.006); }
+  100% { opacity: 0.65; transform: scale(1); }
+}
+.profile-updating-pulse {
+  animation: profilePulseGlow 1.4s ease-in-out infinite alternate;
+}
+.profile-shimmer {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.3s infinite ease-in-out;
+  border-radius: 4px;
+}
 
 .feed-section { margin-bottom: 22px; }
 .feed-section h3 {
@@ -1025,12 +1102,18 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
+  width: 100%;
+  position: relative;
+  z-index: 10;
 }
 .story-user-info {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 .story-dp {
   width: 40px;
@@ -1038,24 +1121,60 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--accent);
+  flex-shrink: 0;
 }
 .story-user-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .story-poster-name {
   color: #fff;
   font-weight: 700;
   font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .story-time-ago {
   color: rgba(255,255,255,0.7);
   font-size: 0.72rem;
 }
+.story-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.story-header-actions .story-card-views-badge {
+  position: static;
+  margin: 0;
+  align-self: center;
+}
 .story-close-btn {
+  position: static !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
   color: #fff !important;
-  font-size: 2rem !important;
-  line-height: 1;
+  font-size: 1.5rem !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  transition: background 0.15s ease, transform 0.15s ease !important;
+}
+.story-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+.story-close-btn:active {
+  transform: scale(0.9) !important;
 }
 .story-book-bar {
   margin-bottom: 10px;
@@ -1541,5 +1660,145 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
   background: var(--surface-2);
   flex-shrink: 0;
+}
+
+/* NOTIFICATION & PERMISSION SETUP GUIDE STYLES */
+.notif-setup-sheet {
+  max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px 18px;
+}
+.notif-setup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.notif-setup-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+.notif-device-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--surface-2);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.notif-device-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.notif-device-tab:hover {
+  color: var(--text);
+}
+.notif-device-tab.active {
+  background: var(--surface-1);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  border: 1px solid var(--accent-dim);
+}
+.notif-device-panel {
+  display: block;
+}
+.notif-step-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease;
+}
+.notif-step-card.active {
+  border-color: var(--accent);
+}
+.notif-step-card.done {
+  border-color: var(--green);
+  background: rgba(46, 204, 113, 0.05);
+}
+.notif-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.notif-step-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1a1406;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.notif-step-card.done .notif-step-badge {
+  background: var(--green);
+  color: #fff;
+}
+.notif-step-info {
+  flex: 1;
+  min-width: 0;
+}
+.notif-step-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.notif-step-desc {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.notif-blocked-guide {
+  margin-top: 10px;
+  background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.notif-tip-card {
+  background: rgba(201, 162, 75, 0.05);
+  border: 1px dashed var(--accent-dim);
+}
+.notif-setup-footer {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.notif-never-wrap {
+  text-align: center;
 }
 
