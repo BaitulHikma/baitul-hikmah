@@ -2023,13 +2023,30 @@ if (testNotifBtn) {
     playNotificationAlarmSound();
     showHeadsUpNotification('Test Notification Alarm 🔔', 'Alarm sound, phone vibration & high-priority alert test successful!');
     showSystemNotification('Baitul Hikmah 🔔', 'High-priority sound, phone vibration & system notification working!');
-    showToast('Testing sound & sending push alarm to phone...');
+    
+    if (!('Notification' in window)) {
+      showToast('Notifications are not supported in this browser mode.');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      showToast('Notification permission not granted yet. Opening setup guide...');
+      openNotificationSetupGuide(false);
+      return;
+    }
+
+    showToast('Syncing push token & sending push to phone...');
     try {
-      if (typeof initPushNotifications === 'function') await initPushNotifications();
-      await api('testNotification', {});
-      showToast('Live push alarm sent to device!');
+      if (typeof initPushNotifications === 'function') {
+        await initPushNotifications(true);
+      }
+      const res = await api('testNotification', {});
+      if (res && res.ok) {
+        showToast('✅ Live push notification dispatched to your phone lockscreen!');
+      } else {
+        showToast('Push test response: ' + (res.error || 'Check Google Sheet PushTokens tab.'));
+      }
     } catch (err) {
-      showToast('Sound & vibration tested locally. (Push: ' + err.message + ')');
+      showToast('Push error: ' + err.message);
     }
   });
 }
@@ -2200,8 +2217,8 @@ $('notifTestSoundInGuideBtn').onclick = async () => {
 };
 
 // PUSH NOTIFICATIONS & FOREGROUND FCM DISPATCH
-async function initPushNotifications() {
-  if (!('serviceWorker' in navigator)) return;
+async function initPushNotifications(forcePrompt = false) {
+  if (!('serviceWorker' in navigator)) return null;
   try {
     const reg = await navigator.serviceWorker.register('./sw.js');
 
@@ -2225,40 +2242,69 @@ async function initPushNotifications() {
 
       if (currentUser && 'Notification' in window) {
         if (Notification.permission === 'granted') {
-          syncPushToken(messaging, reg);
-        } else if (Notification.permission === 'default') {
+          return await syncPushToken(messaging, reg, forcePrompt);
+        } else if (Notification.permission === 'default' && !forcePrompt) {
           // Auto trigger friendly setup wizard on app open
           setTimeout(() => openNotificationSetupGuide(true), 1200);
         }
       }
     } else {
-      if (currentUser && 'Notification' in window && Notification.permission === 'default') {
+      if (currentUser && 'Notification' in window && Notification.permission === 'default' && !forcePrompt) {
         setTimeout(() => openNotificationSetupGuide(true), 1200);
       }
     }
   } catch (err) {
     console.warn('SW/Firebase init:', err);
   }
+  return null;
 }
 
-async function syncPushToken(messaging, serviceWorkerRegistration) {
-  if (!currentUser) return;
+async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt = false) {
+  if (!currentUser) return null;
   try {
     const vapidKey = typeof FIREBASE_VAPID_KEY !== 'undefined' ? FIREBASE_VAPID_KEY : undefined;
-    const token = await messaging.getToken({ vapidKey, serviceWorkerRegistration });
+    
+    // Ensure service worker registration is active
+    let swReg = serviceWorkerRegistration;
+    if (!swReg && 'serviceWorker' in navigator) {
+      swReg = await navigator.serviceWorker.ready.catch(() => null);
+    }
+
+    const tokenOptions = { vapidKey };
+    if (swReg) {
+      tokenOptions.serviceWorkerRegistration = swReg;
+    }
+
+    const token = await messaging.getToken(tokenOptions);
     if (token) {
       const userKey = 'bh_push_token_u_' + currentUser.id;
       const lastToken = localStorage.getItem(userKey);
-      if (lastToken !== token) {
-        const res = await api('savePushToken', { pushToken: token }).catch(() => null);
+      if (lastToken !== token || forcePrompt) {
+        const res = await api('savePushToken', { pushToken: token }).catch((err) => {
+          console.warn('savePushToken api call error:', err);
+          return null;
+        });
         if (res && res.ok) {
           localStorage.setItem(userKey, token);
           localStorage.setItem('bh_push_token', token);
+          if (forcePrompt) {
+            showToast('✅ Device push token synced to backend!');
+          }
+        } else if (forcePrompt && res && res.error) {
+          showToast('Failed to save token: ' + res.error);
         }
       }
+      return token;
+    } else {
+      if (forcePrompt) showToast('No push token returned from Firebase.');
+      return null;
     }
   } catch (err) {
     console.warn('Could not sync push token:', err);
+    if (forcePrompt) {
+      showToast('Push token error: ' + (err.message || err));
+    }
+    return null;
   }
 }
 
