@@ -299,7 +299,7 @@ async function api(action, payload) {
   const body = Object.assign({ action: action }, payload || {});
   if (currentUser) {
     body.userId = body.userId || currentUser.id;
-    body.token = body.token || currentUser.token;
+    body.token = currentUser.token;
   }
   const res = await fetch(API_URL, {
     method: 'POST',
@@ -1055,7 +1055,6 @@ function renderMembersUI(data) {
   else { lbEl.classList.add('hidden'); }
 
   $('membersList').innerHTML = allMembers.map(m => {
-    const cooldownActive = m.salamCooldownUntil && new Date(m.salamCooldownUntil) > new Date();
     const isSelf = currentUser && String(m.id) === String(currentUser.id);
     const statsText = (m.ownedBooks != null) ? `Owns ${m.ownedBooks} · Lent ${m.lentOut} · Borrowed ${m.borrowed}` : `Role: ${m.role || 'Member'}`;
 
@@ -1070,7 +1069,7 @@ function renderMembersUI(data) {
         ${m.bio ? `<div class="bio">${escapeHtml(m.bio)}</div>` : ''}
         <div class="stats">${statsText}</div>
       </div>
-      ${isSelf ? '' : `<button class="salam-btn ${cooldownActive ? 'faded' : ''}" ${cooldownActive ? 'disabled' : ''} onclick="event.stopPropagation(); sendSalam(this,'${m.id}')">Send Salam!</button>`}
+      ${isSelf ? '' : `<button class="salam-btn" onclick="event.stopPropagation(); sendSalam(this,'${m.id}')">Send Salam!</button>`}
     </div>`;
   }).join('');
 }
@@ -1118,11 +1117,10 @@ async function refreshMembers() {
 }
 
 window.sendSalam = (btn, targetId) => guardedAction('salam-' + targetId, btn, async () => {
-  btn.classList.add('faded');
-  btn.disabled = true;
-  await api('sendSalam', { targetId }).catch(err => { btn.classList.remove('faded'); btn.disabled = false; throw err; });
-  showToast('Salam sent!');
-  setTimeout(() => { btn.classList.remove('faded'); btn.disabled = false; }, 30 * 60 * 1000);
+  btn.classList.add('pop-active');
+  await api('sendSalam', { targetId }).catch(err => { btn.classList.remove('pop-active'); throw err; });
+  showToast('Salam sent! 👋');
+  setTimeout(() => { btn.classList.remove('pop-active'); }, 600);
 });
 
 // FULL LIVE UPDATE PAGE (#15)
@@ -2025,8 +2023,9 @@ if (testNotifBtn) {
     playNotificationAlarmSound();
     showHeadsUpNotification('Test Notification Alarm 🔔', 'Alarm sound, phone vibration & high-priority alert test successful!');
     showSystemNotification('Baitul Hikmah 🔔', 'High-priority sound, phone vibration & system notification working!');
-    showToast('Testing high-priority sound & alarm...');
+    showToast('Testing sound & sending push alarm to phone...');
     try {
+      if (typeof initPushNotifications === 'function') await initPushNotifications();
       await api('testNotification', {});
       showToast('Live push alarm sent to device!');
     } catch (err) {
@@ -2187,11 +2186,17 @@ if (iosEnableBtn) iosEnableBtn.onclick = requestNotificationPermissionFlow;
 const desktopEnableBtn = $('notifDesktopEnableBtn');
 if (desktopEnableBtn) desktopEnableBtn.onclick = requestNotificationPermissionFlow;
 
-$('notifTestSoundInGuideBtn').onclick = () => {
+$('notifTestSoundInGuideBtn').onclick = async () => {
   playNotificationAlarmSound();
   showHeadsUpNotification('Test Notification Sound 🔔', 'Loud alarm sound, vibration & alert banner working smoothly!');
   showSystemNotification('Baitul Hikmah 🔔', 'Test alarm & phone alert working!');
   showToast('Sound & vibration alarm tested!');
+  try {
+    if (currentUser) {
+      if (typeof initPushNotifications === 'function') await initPushNotifications();
+      await api('testNotification', {});
+    }
+  } catch (e) {}
 };
 
 // PUSH NOTIFICATIONS & FOREGROUND FCM DISPATCH
@@ -2237,14 +2242,19 @@ async function initPushNotifications() {
 }
 
 async function syncPushToken(messaging, serviceWorkerRegistration) {
+  if (!currentUser) return;
   try {
     const vapidKey = typeof FIREBASE_VAPID_KEY !== 'undefined' ? FIREBASE_VAPID_KEY : undefined;
     const token = await messaging.getToken({ vapidKey, serviceWorkerRegistration });
     if (token) {
-      const lastToken = localStorage.getItem('bh_push_token');
+      const userKey = 'bh_push_token_u_' + currentUser.id;
+      const lastToken = localStorage.getItem(userKey);
       if (lastToken !== token) {
-        await api('savePushToken', { token }).catch(() => {});
-        localStorage.setItem('bh_push_token', token);
+        const res = await api('savePushToken', { pushToken: token }).catch(() => null);
+        if (res && res.ok) {
+          localStorage.setItem(userKey, token);
+          localStorage.setItem('bh_push_token', token);
+        }
       }
     }
   } catch (err) {

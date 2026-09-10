@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v9';
+const CACHE_NAME = 'baitul-hikmah-v10';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,8 @@ const APP_SHELL = [
   './config.js',
   './firebase-config.js',
   './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
   './assets/stat_my_books.jpg',
   './assets/stat_borrowed.jpg',
   './assets/stat_lent_out.jpg'
@@ -52,79 +54,102 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+let firebaseMessagingInitialized = false;
+
 try {
   importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
   importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
   importScripts('./firebase-config.js');
 
-  if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_YOUR') !== 0) {
-    firebase.initializeApp(FIREBASE_CONFIG);
+  if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_YOUR') === -1) {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
     const messaging = firebase.messaging();
+    firebaseMessagingInitialized = true;
 
+    // Triggered for data-only messages when app/tab is closed
     messaging.onBackgroundMessage((payload) => {
       const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'Baitul Hikmah';
       const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new update.';
-      self.registration.showNotification(title, {
+      const tag = 'bh-notif-' + ((payload.data && payload.data.timestamp) || Date.now());
+
+      return self.registration.showNotification(title, {
         body: body,
         icon: './icons/icon-192.png',
         badge: './icons/icon-192.png',
         requireInteraction: true,
         renotify: true,
-        tag: 'bh-notif-' + (payload.data && payload.data.timestamp ? payload.data.timestamp : Date.now()),
+        tag: tag,
         vibrate: [350, 100, 450, 100, 500, 100, 500],
         sound: 'default',
-        data: { url: './#profile' }
+        data: { url: (payload.data && payload.data.url) || './#profile' }
       });
     });
   }
 } catch (e) {
-  // Firebase optional
+  console.warn('Firebase background SW init:', e);
 }
 
-// Direct Web Push fallback
+// Fallback push listener for direct Web Push payloads or when Firebase compat is bypassed
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  try {
-    const payload = event.data.json();
-    const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'Baitul Hikmah';
-    const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new update.';
-    event.waitUntil(
-      self.registration.showNotification(title, {
-        body: body,
-        icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
-        requireInteraction: true,
-        renotify: true,
-        tag: 'bh-notif-' + Date.now(),
-        vibrate: [350, 100, 450, 100, 500, 100, 500],
-        sound: 'default',
-        data: { url: './#profile' }
-      })
-    );
-  } catch (e) {
-    // Non-json payload fallback
-    const text = event.data.text() || 'New alert from Baitul Hikmah';
-    event.waitUntil(
-      self.registration.showNotification('Baitul Hikmah', {
-        body: text,
-        icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
-        requireInteraction: true,
-        vibrate: [350, 100, 450, 100, 500, 100, 500],
-        data: { url: './#profile' }
-      })
-    );
+  if (firebaseMessagingInitialized && event.data) {
+    // If Firebase is active and this is a standard FCM payload, Firebase's own background handler handles it
+    try {
+      const testJson = event.data.json();
+      if (testJson.fcmMessageId || testJson.notification) {
+        return; // Handled by Firebase Messaging internally
+      }
+    } catch (e) {}
   }
+
+  let title = 'Baitul Hikmah';
+  let body = 'You have a new update.';
+  let tag = 'bh-push-' + Date.now();
+  let url = './#profile';
+
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || title;
+      body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || body;
+      tag = 'bh-notif-' + ((payload.data && payload.data.timestamp) || Date.now());
+      url = (payload.data && payload.data.url) || url;
+    } catch (e) {
+      body = event.data.text() || body;
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: body,
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      requireInteraction: true,
+      renotify: true,
+      tag: tag,
+      vibrate: [350, 100, 450, 100, 500, 100, 500],
+      sound: 'default',
+      data: { url: url }
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './#profile';
+
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((clientList) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          if (client.url.includes('#') && !client.url.includes(targetUrl)) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow('./');
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
   );
 });
