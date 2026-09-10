@@ -2264,10 +2264,29 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
   try {
     const vapidKey = typeof FIREBASE_VAPID_KEY !== 'undefined' ? FIREBASE_VAPID_KEY : undefined;
     
-    // Ensure service worker registration is active
-    let swReg = serviceWorkerRegistration;
-    if (!swReg && 'serviceWorker' in navigator) {
+    // Always wait for the service worker to be fully active and ready
+    let swReg = null;
+    if ('serviceWorker' in navigator) {
       swReg = await navigator.serviceWorker.ready.catch(() => null);
+    }
+    if (!swReg) {
+      swReg = serviceWorkerRegistration;
+    }
+
+    // If still activating or installing, wait for it so PushManager does not throw 'no active Service Worker'
+    if (swReg && !swReg.active) {
+      const pendingWorker = swReg.installing || swReg.waiting;
+      if (pendingWorker) {
+        await new Promise((resolve) => {
+          pendingWorker.addEventListener('statechange', function onStateChange() {
+            if (this.state === 'activated') {
+              this.removeEventListener('statechange', onStateChange);
+              resolve();
+            }
+          });
+          setTimeout(resolve, 2500);
+        });
+      }
     }
 
     const tokenOptions = { vapidKey };
@@ -2302,7 +2321,14 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
   } catch (err) {
     console.warn('Could not sync push token:', err);
     if (forcePrompt) {
-      showToast('Push token error: ' + (err.message || err));
+      const msg = String(err.message || err);
+      if (msg.indexOf('no active Service Worker') !== -1) {
+        showToast('Activating background service worker... Please tap Test again in 3 seconds.');
+      } else if (msg.indexOf('Registration failed') !== -1 || msg.indexOf('push service') !== -1) {
+        showToast('Push service unavailable on this device. (Check Google Play Services in settings).');
+      } else {
+        showToast('Push token error: ' + msg);
+      }
     }
     return null;
   }

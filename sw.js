@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v11';
+const CACHE_NAME = 'baitul-hikmah-v12';
 const APP_SHELL = [
   './',
   './index.html',
@@ -67,64 +67,45 @@ try {
     }
     const messaging = firebase.messaging();
     firebaseMessagingInitialized = true;
-
-    // Triggered for data-only messages when app/tab is closed
-    messaging.onBackgroundMessage((payload) => {
-      const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'Baitul Hikmah';
-      const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new update.';
-      const tag = 'bh-notif-' + ((payload.data && payload.data.timestamp) || Date.now());
-
-      return self.registration.showNotification(title, {
-        body: body,
-        icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
-        requireInteraction: true,
-        renotify: true,
-        tag: tag,
-        vibrate: [350, 100, 450, 100, 500, 100, 500],
-        sound: 'default',
-        data: { url: (payload.data && payload.data.url) || './#profile' }
-      });
-    });
   }
 } catch (e) {
   console.warn('Firebase background SW init:', e);
 }
 
-// Fallback push listener for direct Web Push payloads or when Firebase compat is bypassed
+// Unified, 100% reliable background push listener for FCM and Web Push
 self.addEventListener('push', (event) => {
-  if (firebaseMessagingInitialized && event.data) {
-    // If Firebase is active and this is a standard FCM payload, Firebase's own background handler handles it
-    try {
-      const testJson = event.data.json();
-      if (testJson.fcmMessageId || testJson.notification) {
-        return; // Handled by Firebase Messaging internally
-      }
-    } catch (e) {}
-  }
-
-  let title = 'Baitul Hikmah';
+  let title = 'Baitul Hikmah 🔔';
   let body = 'You have a new update.';
   let tag = 'bh-push-' + Date.now();
   let url = './#profile';
+  let iconUrl = new URL('icons/icon-192.png', self.location.href).href;
+  let badgeUrl = new URL('icons/icon-192.png', self.location.href).href;
 
   if (event.data) {
     try {
       const payload = event.data.json();
-      title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || title;
-      body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || body;
-      tag = 'bh-notif-' + ((payload.data && payload.data.timestamp) || Date.now());
-      url = (payload.data && payload.data.url) || url;
+      const n = payload.notification || {};
+      const d = payload.data || {};
+
+      title = n.title || d.title || title;
+      body = n.body || d.body || body;
+      tag = 'bh-notif-' + (d.timestamp || Date.now());
+      url = d.url || (payload.fcmOptions && payload.fcmOptions.link) || url;
+
+      if (n.icon) {
+        try { iconUrl = new URL(n.icon, self.location.href).href; } catch (_) {}
+      }
     } catch (e) {
-      body = event.data.text() || body;
+      const text = event.data.text();
+      if (text) body = text;
     }
   }
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,
-      icon: './icons/icon-192.png',
-      badge: './icons/icon-192.png',
+      icon: iconUrl,
+      badge: badgeUrl,
       requireInteraction: true,
       renotify: true,
       tag: tag,
