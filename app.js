@@ -2019,7 +2019,7 @@ $('notifModal').querySelector('.modal-backdrop').onclick = () => $('notifModal')
 // Test Notification button with high-priority alarm sound and vibration
 const testNotifBtn = $('testNotifBtn');
 if (testNotifBtn) {
-  testNotifBtn.onclick = (e) => guardedAction('testnotif', e.target, async () => {
+  testNotifBtn.onclick = () => guardedAction('testnotif', testNotifBtn, async () => {
     playNotificationAlarmSound();
     showHeadsUpNotification('Test Notification Alarm 🔔', 'Alarm sound, phone vibration & high-priority alert test successful!');
     showSystemNotification('Baitul Hikmah 🔔', 'High-priority sound, phone vibration & system notification working!');
@@ -2034,19 +2034,27 @@ if (testNotifBtn) {
       return;
     }
 
-    showToast('Syncing push token & sending push to phone...');
+    showToast('Dispatching test notification to your phone lockscreen...');
+    
+    // Quick token sync attempt (max 2 seconds) so it never blocks the test
     try {
       if (typeof initPushNotifications === 'function') {
-        await initPushNotifications(true);
+        await Promise.race([
+          initPushNotifications(false),
+          new Promise(r => setTimeout(r, 2000))
+        ]).catch(() => null);
       }
+    } catch (_) {}
+
+    try {
       const res = await api('testNotification', {});
       if (res && res.ok) {
-        showToast('✅ Live push notification dispatched to your phone lockscreen!');
+        showToast('✅ Live push notification dispatched! Check your phone lockscreen.');
       } else {
-        showToast('Push test response: ' + (res.error || 'Check Google Sheet PushTokens tab.'));
+        showToast('Push test response: ' + ((res && res.error) || 'Check Google Sheet PushTokens tab.'));
       }
     } catch (err) {
-      showToast('Push error: ' + err.message);
+      showToast('Push error: ' + (err.message || err));
     }
   });
 }
@@ -2264,27 +2272,31 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
   try {
     const vapidKey = typeof FIREBASE_VAPID_KEY !== 'undefined' ? FIREBASE_VAPID_KEY : undefined;
     
-    // Always wait for the service worker to be fully active and ready
+    // Wait for service worker with strict timeout so it never deadlocks
     let swReg = null;
     if ('serviceWorker' in navigator) {
-      swReg = await navigator.serviceWorker.ready.catch(() => null);
+      swReg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise(r => setTimeout(() => r(null), 1500))
+      ]).catch(() => null);
     }
     if (!swReg) {
       swReg = serviceWorkerRegistration;
     }
 
-    // If still activating or installing, wait for it so PushManager does not throw 'no active Service Worker'
+    // If still activating or installing, give it a quick 1.5s grace period
     if (swReg && !swReg.active) {
       const pendingWorker = swReg.installing || swReg.waiting;
       if (pendingWorker) {
         await new Promise((resolve) => {
+          const timeout = setTimeout(resolve, 1500);
           pendingWorker.addEventListener('statechange', function onStateChange() {
             if (this.state === 'activated') {
+              clearTimeout(timeout);
               this.removeEventListener('statechange', onStateChange);
               resolve();
             }
           });
-          setTimeout(resolve, 2500);
         });
       }
     }
@@ -2294,7 +2306,10 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
       tokenOptions.serviceWorkerRegistration = swReg;
     }
 
-    const token = await messaging.getToken(tokenOptions);
+    const token = await Promise.race([
+      messaging.getToken(tokenOptions),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Push token request timed out')), 4000))
+    ]);
     if (token) {
       const userKey = 'bh_push_token_u_' + currentUser.id;
       const lastToken = localStorage.getItem(userKey);
