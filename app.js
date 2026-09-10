@@ -66,8 +66,12 @@ function getOrdinalSuffix(n) {
 
 function formatDate(d) {
   if (!d) return '';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return String(d);
+  let dt = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dt.getTime())) {
+    const clean = String(d).trim();
+    dt = new Date(clean.replace(/-/g, '/'));
+    if (isNaN(dt.getTime())) return String(d);
+  }
   const day = getOrdinalSuffix(dt.getDate());
   const month = dt.toLocaleString('en-US', { month: 'long' });
   const year = dt.getFullYear();
@@ -76,14 +80,13 @@ function formatDate(d) {
 
 function timeAgo(d) {
   if (!d) return '';
-  const dt = new Date(d);
-  if (isNaN(dt)) return '';
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dt.getTime())) return '';
   const diffSec = Math.floor((Date.now() - dt.getTime()) / 1000);
   if (diffSec < 60) return 'Just now';
-  if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm';
-  if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h';
-  if (diffSec < 604800) return Math.floor(diffSec / 86400) + 'd';
-  return dt.toLocaleDateString();
+  if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago';
+  if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h ago';
+  return formatDate(dt);
 }
 
 function pickEventIcon(text) {
@@ -949,17 +952,33 @@ $('waConfirmSubmitBtn').onclick = (e) => guardedAction('waconfirm', e.target, as
   if (!password) { $('waConfirmError').textContent = 'Enter your password.'; return; }
   if (!activeModalBook) return;
 
+  const btn = $('waConfirmSubmitBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Verifying...';
+  btn.disabled = true;
+
   let data;
   try {
     data = await api('confirmWhatsappAccess', { bookId: activeModalBook.bookId, password });
   } catch (err) {
     $('waConfirmError').textContent = err.message;
+    btn.textContent = originalText;
+    btn.disabled = false;
     return;
   }
+  btn.textContent = 'Opening WhatsApp...';
   $('waConfirmModal').classList.add('hidden');
   $('bookModal').classList.add('hidden');
+  btn.textContent = originalText;
+  btn.disabled = false;
+
   const wa = String(data.whatsapp || '').replace(/[^0-9]/g, '');
-  if (wa) window.open('https://wa.me/' + wa, '_blank', 'noopener');
+  if (wa) {
+    const waUrl = 'https://wa.me/' + wa;
+    window.location.href = waUrl;
+  } else {
+    showToast('No WhatsApp number found for this book owner.');
+  }
 });
 
 $('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.bookId, e.target, async () => {
@@ -2051,6 +2070,11 @@ if (testNotifBtn) {
       console.warn('Token sync warning:', err);
     }
 
+    if (!activeToken) {
+      showToast('⚠️ Push token could not be obtained from Google FCM. On China ROM (Redmi/OnePlus), please enable "Basic Google Services" in phone settings.');
+      return;
+    }
+
     try {
       showToast('Dispatching test notification to your phone lockscreen...');
       const res = await api('testNotification', { pushToken: activeToken || '' });
@@ -2093,12 +2117,50 @@ function updateNotifSetupUI() {
   const blockedGuide1 = $('notifStep1BlockedGuide');
 
   if (perm === 'granted') {
+    const hasToken = !!(localStorage.getItem('bh_push_token'));
     if (card1) {
-      card1.className = 'notif-step-card done';
-      badge1.textContent = '✓';
-      status1.textContent = '✅ Notifications are allowed on this device.';
+      card1.className = 'notif-step-card ' + (hasToken ? 'done' : 'active');
+      badge1.textContent = hasToken ? '✓' : '1';
+      status1.innerHTML = hasToken
+        ? '✅ Notifications are allowed &amp; phone push token is registered.'
+        : '⚠️ Notifications allowed, but phone push token needs to be registered. Tap below to sync.';
     }
-    if (actionWrap1) actionWrap1.classList.add('hidden');
+    if (actionWrap1) {
+      actionWrap1.classList.remove('hidden');
+      actionWrap1.innerHTML = `
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          <button id="notifSyncTokenBtn" type="button" class="btn ${hasToken ? 'btn-secondary' : 'btn-primary'}" style="flex:1; min-width:140px; padding:8px 12px; font-size:0.82rem;">
+            🔄 ${hasToken ? 'Re-sync Push Token' : 'Register Phone Token'}
+          </button>
+          <button id="notifTestAlertDirectBtn" type="button" class="btn btn-secondary" style="flex:1; min-width:140px; padding:8px 12px; font-size:0.82rem;">
+            🚨 Send Test Lockscreen Alert
+          </button>
+        </div>
+      `;
+      const syncBtn = $('notifSyncTokenBtn');
+      if (syncBtn) {
+        syncBtn.onclick = async () => {
+          syncBtn.textContent = 'Syncing token...';
+          syncBtn.disabled = true;
+          try {
+            const tok = await initPushNotifications(true);
+            if (tok) {
+              showToast('✅ Device push token registered successfully!');
+            }
+          } catch (e) {
+            showToast('Token sync error: ' + (e.message || e));
+          } finally {
+            updateNotifSetupUI();
+          }
+        };
+      }
+      const testDirectBtn = $('notifTestAlertDirectBtn');
+      if (testDirectBtn) {
+        testDirectBtn.onclick = () => {
+          if ($('testNotifBtn')) $('testNotifBtn').click();
+        };
+      }
+    }
     if (blockedGuide1) blockedGuide1.classList.add('hidden');
 
     const iosBtn = $('notifIosEnableBtn');
@@ -2316,12 +2378,14 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
       tokenOptions.serviceWorkerRegistration = swReg;
     }
 
+    let fcmError = null;
     const token = await Promise.race([
       messaging.getToken(tokenOptions).catch(err => {
+        fcmError = err;
         console.warn('Firebase getToken error:', err);
         return null;
       }),
-      new Promise(r => setTimeout(() => r(null), 4000))
+      new Promise(r => setTimeout(() => r(null), 12000))
     ]);
     if (token) {
       const userKey = 'bh_push_token_u_' + currentUser.id;
@@ -2344,10 +2408,23 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
       return token;
     } else {
       const existing = localStorage.getItem('bh_push_token') || null;
-      if (forcePrompt && !existing) {
-        showToast('Push token pending... (Check Google Play Services if on China ROM)');
+      if (existing) {
+        await api('savePushToken', { pushToken: existing }).catch(() => {});
+        return existing;
       }
-      return existing;
+      if (forcePrompt) {
+        if (fcmError) {
+          const errMsg = String(fcmError.message || fcmError);
+          if (errMsg.includes('push service') || errMsg.includes('Registration failed')) {
+            showToast('⚠️ Push service unavailable. On China ROM (Redmi/OnePlus), enable "Google Basic Services" in phone settings.');
+          } else {
+            showToast('Push token error: ' + errMsg);
+          }
+        } else {
+          showToast('Push token request timed out. (Check Google Play Services on China ROM).');
+        }
+      }
+      return null;
     }
   } catch (err) {
     console.warn('Could not sync push token:', err);
