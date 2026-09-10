@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v13';
+const CACHE_NAME = 'baitul-hikmah-v14';
 const APP_SHELL = [
   './',
   './index.html',

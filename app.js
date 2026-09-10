@@ -2034,20 +2034,26 @@ if (testNotifBtn) {
       return;
     }
 
-    showToast('Dispatching test notification to your phone lockscreen...');
+    if (!currentUser) {
+      showToast('Please sign in to test live push delivery.');
+      return;
+    }
+
+    showToast('Connecting device push token to backend...');
     
-    // Quick token sync attempt (max 2 seconds) so it never blocks the test
+    let activeToken = localStorage.getItem('bh_push_token') || null;
     try {
       if (typeof initPushNotifications === 'function') {
-        await Promise.race([
-          initPushNotifications(false),
-          new Promise(r => setTimeout(r, 2000))
-        ]).catch(() => null);
+        const synced = await initPushNotifications(true);
+        if (synced) activeToken = synced;
       }
-    } catch (_) {}
+    } catch (err) {
+      console.warn('Token sync warning:', err);
+    }
 
     try {
-      const res = await api('testNotification', {});
+      showToast('Dispatching test notification to your phone lockscreen...');
+      const res = await api('testNotification', { pushToken: activeToken || '' });
       if (res && res.ok) {
         showToast('✅ Live push notification dispatched! Check your phone lockscreen.');
       } else {
@@ -2218,8 +2224,12 @@ $('notifTestSoundInGuideBtn').onclick = async () => {
   showToast('Sound & vibration alarm tested!');
   try {
     if (currentUser) {
-      if (typeof initPushNotifications === 'function') await initPushNotifications();
-      await api('testNotification', {});
+      let activeToken = localStorage.getItem('bh_push_token') || null;
+      if (typeof initPushNotifications === 'function') {
+        const synced = await initPushNotifications(true);
+        if (synced) activeToken = synced;
+      }
+      await api('testNotification', { pushToken: activeToken || '' });
     }
   } catch (e) {}
 };
@@ -2307,8 +2317,11 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
     }
 
     const token = await Promise.race([
-      messaging.getToken(tokenOptions),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Push token request timed out')), 4000))
+      messaging.getToken(tokenOptions).catch(err => {
+        console.warn('Firebase getToken error:', err);
+        return null;
+      }),
+      new Promise(r => setTimeout(() => r(null), 4000))
     ]);
     if (token) {
       const userKey = 'bh_push_token_u_' + currentUser.id;
@@ -2330,8 +2343,11 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
       }
       return token;
     } else {
-      if (forcePrompt) showToast('No push token returned from Firebase.');
-      return null;
+      const existing = localStorage.getItem('bh_push_token') || null;
+      if (forcePrompt && !existing) {
+        showToast('Push token pending... (Check Google Play Services if on China ROM)');
+      }
+      return existing;
     }
   } catch (err) {
     console.warn('Could not sync push token:', err);
