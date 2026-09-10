@@ -1,5 +1,5 @@
-const CACHE_NAME = 'baitul-hikmah-v15';
-const APP_SHELL = [
+const CACHE_NAME = 'baitul-hikmah-v16';
+const CORE_APP_SHELL = [
   './',
   './index.html',
   './style.css',
@@ -7,27 +7,27 @@ const APP_SHELL = [
   './config.js',
   './firebase-config.js',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './assets/stat_my_books.jpg',
-  './assets/stat_borrowed.jpg',
-  './assets/stat_lent_out.jpg'
+  './icons/icon-192.png'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(CORE_APP_SHELL))
+      .catch((err) => console.warn('Core cache addAll warning:', err))
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
-    )
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((names) =>
+        Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
+      )
+    ])
   );
-  self.clients.claim();
 });
 
 const CODE_FILE_PATTERN = /\.(html|css|js|json)(\?|$)/;

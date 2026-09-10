@@ -2339,42 +2339,63 @@ async function initPushNotifications(forcePrompt = false) {
   return null;
 }
 
+async function ensureActiveServiceWorker(providedReg) {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    let reg = providedReg || await navigator.serviceWorker.getRegistration().catch(() => null);
+    if (!reg) {
+      reg = await navigator.serviceWorker.register('./sw.js').catch(() => null);
+    }
+    if (!reg) return null;
+
+    if (reg.active && reg.active.state === 'activated') {
+      return reg;
+    }
+
+    // Wait for navigator.serviceWorker.ready with a generous timeout
+    const readyReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('ready timeout')), 8000))
+    ]).catch(() => null);
+
+    if (readyReg && readyReg.active) {
+      return readyReg;
+    }
+
+    const worker = reg.installing || reg.waiting || (readyReg && (readyReg.installing || readyReg.waiting));
+    if (worker) {
+      if (worker.state === 'activated') return readyReg || reg;
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 6000);
+        worker.addEventListener('statechange', function onState() {
+          if (worker.state === 'activated') {
+            clearTimeout(timer);
+            worker.removeEventListener('statechange', onState);
+            resolve();
+          }
+        });
+      });
+    }
+
+    const latest = await navigator.serviceWorker.getRegistration().catch(() => null);
+    return (latest && latest.active) ? latest : (readyReg && readyReg.active ? readyReg : reg);
+  } catch (err) {
+    console.warn('ensureActiveServiceWorker error:', err);
+    return providedReg || null;
+  }
+}
+
 async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt = false) {
   if (!currentUser) return null;
   try {
     const vapidKey = typeof FIREBASE_VAPID_KEY !== 'undefined' ? FIREBASE_VAPID_KEY : undefined;
-    
-    // Wait for service worker with strict timeout so it never deadlocks
-    let swReg = null;
-    if ('serviceWorker' in navigator) {
-      swReg = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise(r => setTimeout(() => r(null), 1500))
-      ]).catch(() => null);
-    }
-    if (!swReg) {
-      swReg = serviceWorkerRegistration;
-    }
 
-    // If still activating or installing, give it a quick 1.5s grace period
-    if (swReg && !swReg.active) {
-      const pendingWorker = swReg.installing || swReg.waiting;
-      if (pendingWorker) {
-        await new Promise((resolve) => {
-          const timeout = setTimeout(resolve, 1500);
-          pendingWorker.addEventListener('statechange', function onStateChange() {
-            if (this.state === 'activated') {
-              clearTimeout(timeout);
-              this.removeEventListener('statechange', onStateChange);
-              resolve();
-            }
-          });
-        });
-      }
-    }
+    // Ensure we have a strictly active service worker before requesting FCM push token
+    const swReg = await ensureActiveServiceWorker(serviceWorkerRegistration);
 
     const tokenOptions = { vapidKey };
-    if (swReg) {
+    // Only pass serviceWorkerRegistration if swReg.active is active, preventing "no active Service Worker" error
+    if (swReg && swReg.active) {
       tokenOptions.serviceWorkerRegistration = swReg;
     }
 
