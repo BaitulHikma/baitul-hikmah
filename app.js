@@ -885,7 +885,7 @@ function renderBookGrid() {
         </div>
       </div>
       <div class="book-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}${catLabel(b)}</div>
+        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>${b.category ? '<div class="book-cat book-cat-line">(' + escapeHtml(b.category) + ')</div>' : ''}
         <div class="sub">${escapeHtml(b.writer || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
