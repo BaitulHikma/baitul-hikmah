@@ -792,6 +792,26 @@ document.querySelectorAll('.chip').forEach(chip => {
 $('bookSearch').oninput = () => { singleBookId = null; renderBookGrid(); };
 $('filterBtn').onclick = () => $('filterChips').scrollIntoView({ behavior: 'smooth' });
 
+const CATEGORY_LIST = ['Tafsir', 'Hadith', 'Seerah', 'Aqeedah', 'Tazkiyah', 'Tasawwuf', 'Spiritual', 'Akhlaq', 'Motivational', 'Marriage', 'Dawah', 'Dua', 'Finance'];
+function setMetaCategory(val) {
+  const sel = $('editMetaCategory'), inp = $('editMetaCustomCategory');
+  val = String(val || '').trim();
+  if (!val) { sel.value = ''; inp.value = ''; inp.classList.add('hidden'); return; }
+  const match = CATEGORY_LIST.find(c => c.toLowerCase() === val.toLowerCase());
+  if (match) { sel.value = match; inp.value = ''; inp.classList.add('hidden'); }
+  else { sel.value = '__custom__'; inp.value = val; inp.classList.remove('hidden'); }
+}
+function getMetaCategory() {
+  const v = $('editMetaCategory').value;
+  return v === '__custom__' ? $('editMetaCustomCategory').value.trim() : v;
+}
+$('editMetaCategory').onchange = () => {
+  const isCustom = $('editMetaCategory').value === '__custom__';
+  $('editMetaCustomCategory').classList.toggle('hidden', !isCustom);
+  if (isCustom) $('editMetaCustomCategory').focus();
+};
+$('categoryFilter').onchange = () => renderBookGrid();
+
 function renderBookGrid() {
   const q = $('bookSearch').value.trim().toLowerCase();
   let list = allBooks.slice();
@@ -814,7 +834,10 @@ function renderBookGrid() {
       const borrowedIds = (profileData && profileData.borrowedBooks || []).map(r => r.bookId);
       list = list.filter(b => borrowedIds.includes(b.bookId));
     }
+    const catSel = $('categoryFilter') ? $('categoryFilter').value : '';
+    if (catSel) list = list.filter(b => String(b.category || '').toLowerCase() === catSel.toLowerCase());
     if (q) list = list.filter(b =>
+      String(b.category || '').toLowerCase().includes(q) ||
       String(b.bookName || '').toLowerCase().includes(q) ||
       String(b.writer || '').toLowerCase().includes(q) ||
       String(b.publisher || '').toLowerCase().includes(q) ||
@@ -1072,6 +1095,7 @@ $('modalEditIconBtn').onclick = () => {
   $('editMetaWriter').value = activeModalBook.writer || '';
   $('editMetaPublisher').value = activeModalBook.publisher || '';
   $('editMetaPageCount').value = activeModalBook.pageCount || '';
+  setMetaCategory(activeModalBook.category);
 
   const downloadWrap = $('editMetaDownloadLinkWrap');
   if (downloadWrap) {
@@ -1840,7 +1864,7 @@ $('bookFilesInput').onchange = async () => {
     statusEl.textContent = 'Compressing photo ' + (i + 1) + ' of ' + files.length + '…';
     try {
       const base64 = await compressImage(files[i], 100);
-      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '', pageCount: '', downloadLink: '' });
+      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '', category: '', pageCount: '', downloadLink: '' });
     } catch (err) {
       showToast('Skipped photo: ' + err.message);
     }
@@ -1875,6 +1899,7 @@ window.openEditMetaForPending = (index) => {
   $('editMetaWriter').value = pf.writer || '';
   $('editMetaPublisher').value = pf.publisher || '';
   $('editMetaPageCount').value = pf.pageCount || '';
+  setMetaCategory(pf.category);
 
   const downloadWrap = $('editMetaDownloadLinkWrap');
   if (downloadWrap) {
@@ -1898,6 +1923,7 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   const writer = $('editMetaWriter').value.trim();
   const publisher = $('editMetaPublisher').value.trim();
   const pageCount = $('editMetaPageCount').value.trim();
+  const category = getMetaCategory();
   const downloadLink = $('editMetaDownloadLink') ? $('editMetaDownloadLink').value.trim() : '';
 
   if (editMetaContext.mode === 'pending') {
@@ -1906,6 +1932,7 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
       pf.bookName = bookName;
       pf.writer = writer;
       pf.publisher = publisher;
+      pf.category = category;
       pf.pageCount = pageCount;
       pf.downloadLink = downloadLink;
     }
@@ -1917,12 +1944,13 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   const bookId = editMetaContext.bookId;
   $('editMetaModal').classList.add('hidden');
   const isPdf = activeModalBook ? activeModalBook.isPdf : false;
-  await api('editBook', { bookId, bookName, writer, publisher, pageCount, downloadLink, isPdf });
+  await api('editBook', { bookId, bookName, writer, publisher, category, pageCount, downloadLink, isPdf });
   showToast('Book details updated.');
   if (activeModalBook && activeModalBook.bookId === bookId) {
     activeModalBook.bookName = bookName;
     activeModalBook.writer = writer;
     activeModalBook.publisher = publisher;
+    activeModalBook.category = category;
     activeModalBook.pageCount = pageCount;
     activeModalBook.downloadLink = downloadLink;
     openBookModal(bookId);
@@ -1940,6 +1968,7 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
     bookName: pf.bookName || '',
     writer: pf.writer || '',
     publisher: pf.publisher || '',
+    category: pf.category || '',
     pageCount: pf.pageCount || '',
     downloadLink: pf.downloadLink || '',
     isPdf: addBooksIsPdf

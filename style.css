@@ -1802,3 +1802,19 @@ a:hover { text-decoration: underline; }
   text-align: center;
 }
 
+
+/* Category filter (Explore) */
+.category-filter {
+  background: var(--surface);
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  max-width: 45%;
+  cursor: pointer;
+  outline: none;
+}
+.category-filter option { background: var(--surface-2); color: var(--text); }
+.field select option { background: var(--surface-2); color: var(--text); }
