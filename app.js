@@ -754,6 +754,10 @@ async function refreshBooks() {
   try {
     const data = await api('listBooks', {});
     allBooks = sortBooksNewestFirst(data.books || []);
+    if (Array.isArray(data.categories) && data.categories.length) {
+      localStorage.setItem('bh_cached_cats', JSON.stringify(data.categories));
+      populateCategorySelects(data.categories);
+    }
     booksLoadedOnce = true;
     localStorage.setItem('bh_cached_books', JSON.stringify(allBooks));
 
@@ -792,7 +796,18 @@ document.querySelectorAll('.chip').forEach(chip => {
 $('bookSearch').oninput = () => { singleBookId = null; renderBookGrid(); };
 $('filterBtn').onclick = () => $('filterChips').scrollIntoView({ behavior: 'smooth' });
 
-const CATEGORY_LIST = ['Tafsir', 'Hadith', 'Seerah', 'Aqeedah', 'Tazkiyah', 'Tasawwuf', 'Spiritual', 'Akhlaq', 'Motivational', 'Marriage', 'Dawah', 'Dua', 'Finance'];
+let CATEGORY_LIST = ['Tafsir', 'Hadith', 'Seerah', 'Aqeedah', 'Tazkiyah', 'Tasawwuf', 'Spiritual', 'Akhlaq', 'Motivational', 'Marriage', 'Dawah', 'Dua', 'Finance'];
+function populateCategorySelects(list) {
+  if (Array.isArray(list) && list.length) CATEGORY_LIST = list.map(String);
+  const opts = CATEGORY_LIST.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+  const f = $('categoryFilter'), m = $('editMetaCategory');
+  if (f) { const v = f.value; f.innerHTML = '<option value="">Category</option>' + opts; f.value = CATEGORY_LIST.includes(v) ? v : ''; }
+  if (m) { const v = m.value; m.innerHTML = '<option value="">None</option><option value="__custom__">Custom…</option>' + opts; m.value = (v === '__custom__' || CATEGORY_LIST.includes(v)) ? v : ''; }
+}
+function catLabel(b) {
+  return b && b.category ? '&nbsp;&nbsp;<span class="book-cat">(' + escapeHtml(b.category) + ')</span>' : '';
+}
+try { populateCategorySelects(JSON.parse(localStorage.getItem('bh_cached_cats') || 'null')); } catch (_) {}
 function setMetaCategory(val) {
   const sel = $('editMetaCategory'), inp = $('editMetaCustomCategory');
   val = String(val || '').trim();
@@ -870,7 +885,7 @@ function renderBookGrid() {
         </div>
       </div>
       <div class="book-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
+        <div class="name">${escapeHtml(b.bookName || 'Untitled')}${catLabel(b)}</div>
         <div class="sub">${escapeHtml(b.writer || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
@@ -888,7 +903,7 @@ window.openBookModal = (bookId) => {
 
   try {
     $('modalImage').src = driveImg(b.imageFileId);
-    $('modalBookName').textContent = b.bookName || 'Untitled book';
+    $('modalBookName').innerHTML = escapeHtml(b.bookName || 'Untitled book') + catLabel(b);
     $('modalWriter').textContent = 'Writer: ' + (b.writer || '—');
     $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—') + (b.pageCount ? ' · ' + b.pageCount + ' pages' : '');
     $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');

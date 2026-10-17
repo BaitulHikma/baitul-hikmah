@@ -1818,3 +1818,5 @@ a:hover { text-decoration: underline; }
 }
 .category-filter option { background: var(--surface-2); color: var(--text); }
 .field select option { background: var(--surface-2); color: var(--text); }
+
+.book-cat { font-size: 0.72em; font-weight: 400; color: #d8d3c4; opacity: 0.85; }
