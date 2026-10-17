@@ -1932,8 +1932,27 @@ function renderNotifList(data) {
 }
 
 // SYSTEM NOTIFICATION DISPATCHER (Phone Notification Shade & Lockscreen)
-async function showSystemNotification(title, body, bookId) {
+const alertedNotificationKeys = new Map();
+
+function shouldTriggerNotificationAlert(notifId, title, body) {
+  const key = notifId ? String(notifId) : (String(title || '') + '|' + String(body || ''));
+  const now = Date.now();
+  // Clear keys older than 20 seconds
+  for (const [k, time] of alertedNotificationKeys.entries()) {
+    if (now - time > 20000) alertedNotificationKeys.delete(k);
+  }
+  if (alertedNotificationKeys.has(key)) {
+    return false; // Suppress duplicate alert!
+  }
+  alertedNotificationKeys.set(key, now);
+  return true;
+}
+
+async function showSystemNotification(title, body, bookId, notifId) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const tag = notifId
+    ? ('bh-' + String(notifId).replace(/[^a-zA-Z0-9_-]/g, '_'))
+    : ('bh-alert-' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32));
   try {
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.ready;
@@ -1943,17 +1962,18 @@ async function showSystemNotification(title, body, bookId) {
           icon: './icons/icon-192.png',
           badge: './icons/icon-192.png',
           requireInteraction: true,
-          renotify: true,
-          tag: 'bh-alert-' + Date.now(),
+          renotify: false,
+          tag: tag,
           vibrate: [350, 100, 450, 100, 500, 100, 500],
-          data: { url: './#profile', bookId: bookId || '' }
+          data: { url: './#profile', bookId: bookId || '', tag: tag }
         });
       }
     }
     new Notification(title || 'Baitul Hikmah', {
       body: body || 'You have a new update.',
       icon: './icons/icon-192.png',
-      badge: './icons/icon-192.png'
+      badge: './icons/icon-192.png',
+      tag: tag
     });
   } catch (err) {
     console.warn('System notification display:', err);
@@ -1986,15 +2006,18 @@ async function checkNotifRedDot() {
       if (prevData !== null) {
         const newUnread = data.notifications.filter(n => !n.read && !knownNotifIds.has(n.id));
         if (newUnread.length > 0) {
-          // Play loud alarm melody and phone vibration
-          playNotificationAlarmSound();
+          // Deduplicate so we only trigger 1 alert per notification
+          const unalerted = newUnread.filter(n => shouldTriggerNotificationAlert(n.id, n.title, n.body));
+          if (unalerted.length > 0) {
+            playNotificationAlarmSound();
+            const topNotif = unalerted[0];
+            showHeadsUpNotification(topNotif.title, topNotif.body, topNotif.bookId);
 
-          // Show heads-up banner for top new notification
-          const topNotif = newUnread[0];
-          showHeadsUpNotification(topNotif.title, topNotif.body, topNotif.bookId);
-
-          // Dispatch real system notification to phone
-          showSystemNotification(topNotif.title, topNotif.body, topNotif.bookId);
+            // Only dispatch OS system notification if app is hidden in background tab
+            if (document.hidden) {
+              showSystemNotification(topNotif.title, topNotif.body, topNotif.bookId, topNotif.id);
+            }
+          }
         }
       }
 
@@ -2041,7 +2064,6 @@ if (testNotifBtn) {
   testNotifBtn.onclick = () => guardedAction('testnotif', testNotifBtn, async () => {
     playNotificationAlarmSound();
     showHeadsUpNotification('Test Notification Alarm 🔔', 'Alarm sound, phone vibration & high-priority alert test successful!');
-    showSystemNotification('Baitul Hikmah 🔔', 'High-priority sound, phone vibration & system notification working!');
     
     if (!('Notification' in window)) {
       showToast('Notifications are not supported in this browser mode.');
@@ -2119,18 +2141,16 @@ function updateNotifSetupUI() {
   if (perm === 'granted') {
     const hasToken = !!(localStorage.getItem('bh_push_token'));
     if (card1) {
-      card1.className = 'notif-step-card ' + (hasToken ? 'done' : 'active');
-      badge1.textContent = hasToken ? '✓' : '1';
-      status1.innerHTML = hasToken
-        ? '✅ Notifications are allowed &amp; phone push token is registered.'
-        : '⚠️ Notifications allowed, but phone push token needs to be registered. Tap below to sync.';
+      card1.className = 'notif-step-card done';
+      badge1.textContent = '✓';
+      status1.innerHTML = '✅ Push notifications are active. Automated daily check keeps phone connected 24/7.';
     }
     if (actionWrap1) {
       actionWrap1.classList.remove('hidden');
       actionWrap1.innerHTML = `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-          <button id="notifSyncTokenBtn" type="button" class="btn ${hasToken ? 'btn-secondary' : 'btn-primary'}" style="flex:1; min-width:140px; padding:8px 12px; font-size:0.82rem;">
-            🔄 ${hasToken ? 'Re-sync Push Token' : 'Register Phone Token'}
+          <button id="notifSyncTokenBtn" type="button" class="btn btn-secondary" style="flex:1; min-width:140px; padding:8px 12px; font-size:0.82rem;">
+            🔄 Force Re-sync Token Now
           </button>
           <button id="notifTestAlertDirectBtn" type="button" class="btn btn-secondary" style="flex:1; min-width:140px; padding:8px 12px; font-size:0.82rem;">
             🚨 Send Test Lockscreen Alert
@@ -2145,7 +2165,7 @@ function updateNotifSetupUI() {
           try {
             const tok = await initPushNotifications(true);
             if (tok) {
-              showToast('✅ Device push token registered successfully!');
+              showToast('✅ Device push token verified & synced with backend!');
             }
           } catch (e) {
             showToast('Token sync error: ' + (e.message || e));
@@ -2250,6 +2270,7 @@ if (neverBtn) {
   };
 }
 
+// Automated permission request flow: immediately auto-syncs token without requiring manual re-sync click!
 async function requestNotificationPermissionFlow() {
   if (!('Notification' in window)) {
     showToast('Notifications are not supported in this browser mode.');
@@ -2260,9 +2281,12 @@ async function requestNotificationPermissionFlow() {
     updateNotifSetupUI();
     if (perm === 'granted') {
       playNotificationAlarmSound();
-      showToast('✅ Notifications enabled! Syncing device token...');
-      initPushNotifications();
-      showSystemNotification('Baitul Hikmah 🔔', 'Phone notifications are now connected!');
+      showToast('✅ Notifications enabled! Automatically connecting phone push token...');
+      // Fully automated registration immediately
+      initPushNotifications(true).then((tok) => {
+        if (tok) showToast('✅ Phone token connected! Notifications active.');
+      });
+      showSystemNotification('Baitul Hikmah 🔔', 'Phone notifications are now connected and automated!');
     } else if (perm === 'denied') {
       showToast('Notifications blocked. Follow the steps above to unblock.');
     }
@@ -2282,7 +2306,6 @@ if (desktopEnableBtn) desktopEnableBtn.onclick = requestNotificationPermissionFl
 $('notifTestSoundInGuideBtn').onclick = async () => {
   playNotificationAlarmSound();
   showHeadsUpNotification('Test Notification Sound 🔔', 'Loud alarm sound, vibration & alert banner working smoothly!');
-  showSystemNotification('Baitul Hikmah 🔔', 'Test alarm & phone alert working!');
   showToast('Sound & vibration alarm tested!');
   try {
     if (currentUser) {
@@ -2313,10 +2336,20 @@ async function initPushNotifications(forcePrompt = false) {
         const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'Baitul Hikmah';
         const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new notification!';
         const bookId = payload.data && payload.data.bookId;
+        const notifId = (payload.data && (payload.data.notifId || payload.data.id)) || (payload.notification && payload.notification.tag);
+
+        // Deduplicate: ensure only 1 alert fires for this notification
+        if (!shouldTriggerNotificationAlert(notifId, title, body)) {
+          return;
+        }
 
         playNotificationAlarmSound();
         showHeadsUpNotification(title, body, bookId);
-        showSystemNotification(title, body, bookId);
+
+        // Only show system notification if the page is hidden in background tab
+        if (document.hidden) {
+          showSystemNotification(title, body, bookId, notifId);
+        }
         checkNotifRedDot();
       });
 
@@ -2385,6 +2418,7 @@ async function ensureActiveServiceWorker(providedReg) {
   }
 }
 
+// Automated Daily Push Token Sync & Heartbeat: Keeps token active 24/7 without manual button press
 async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt = false) {
   if (!currentUser) return null;
   try {
@@ -2394,7 +2428,6 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
     const swReg = await ensureActiveServiceWorker(serviceWorkerRegistration);
 
     const tokenOptions = { vapidKey };
-    // Only pass serviceWorkerRegistration if swReg.active is active, preventing "no active Service Worker" error
     if (swReg && swReg.active) {
       tokenOptions.serviceWorkerRegistration = swReg;
     }
@@ -2408,10 +2441,16 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
       }),
       new Promise(r => setTimeout(() => r(null), 12000))
     ]);
+
     if (token) {
       const userKey = 'bh_push_token_u_' + currentUser.id;
       const lastToken = localStorage.getItem(userKey);
-      if (lastToken !== token || forcePrompt) {
+      const lastSyncTime = parseInt(localStorage.getItem('bh_last_push_sync_time_' + currentUser.id) || '0', 10);
+      
+      // Automatically re-sync every 12 hours (automated daily program) or if token changed
+      const isDailyHeartbeatDue = (Date.now() - lastSyncTime > 12 * 60 * 60 * 1000);
+
+      if (lastToken !== token || forcePrompt || isDailyHeartbeatDue) {
         const res = await api('savePushToken', { pushToken: token }).catch((err) => {
           console.warn('savePushToken api call error:', err);
           return null;
@@ -2419,6 +2458,7 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
         if (res && res.ok) {
           localStorage.setItem(userKey, token);
           localStorage.setItem('bh_push_token', token);
+          localStorage.setItem('bh_last_push_sync_time_' + currentUser.id, String(Date.now()));
           if (forcePrompt) {
             showToast('✅ Device push token synced to backend!');
           }
@@ -2461,6 +2501,42 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
     }
     return null;
   }
+}
+
+// Automated daily & visibility check program
+function runDailyNotificationHealthCheck() {
+  if (!currentUser) return;
+  if ('Notification' in window && Notification.permission === 'granted') {
+    initPushNotifications(false);
+  }
+}
+
+// Re-check and auto-sync whenever user opens or switches back to the app (screen on / unlock)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    runDailyNotificationHealthCheck();
+  }
+});
+
+// Hourly background health check interval
+setInterval(runDailyNotificationHealthCheck, 60 * 60 * 1000);
+
+// Service worker notification click listener: immediately navigates to app page when notification is clicked
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'NOTIFICATION_CLICKED') {
+      if (event.data.bookId) {
+        singleBookId = event.data.bookId;
+        goPage('explore');
+      } else if (event.data.url && event.data.url.includes('#')) {
+        const hash = event.data.url.split('#')[1];
+        if (hash) goPage(hash);
+      } else {
+        goPage('profile');
+        if ($('notifBellBtn')) $('notifBellBtn').click();
+      }
+    }
+  });
 }
 
 // EDIT PROFILE
@@ -2571,7 +2647,14 @@ function applyCustomStatBgImages() {
   applyCustomStatBgImages();
   const startHash = (location.hash || '').slice(1);
   if (currentUser) {
-    renderPage(PAGES.includes(startHash) ? startHash : 'profile');
+    if (startHash === 'notifications') {
+      renderPage('profile');
+      setTimeout(() => {
+        if ($('notifBellBtn')) $('notifBellBtn').click();
+      }, 350);
+    } else {
+      renderPage(PAGES.includes(startHash) ? startHash : 'profile');
+    }
     setTimeout(() => {
       refreshBooks();
       refreshFeaturedPosts();

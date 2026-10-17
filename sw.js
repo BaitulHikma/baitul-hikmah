@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v16';
+const CACHE_NAME = 'baitul-hikmah-v17';
 const CORE_APP_SHELL = [
   './',
   './index.html',
@@ -72,14 +72,31 @@ try {
   console.warn('Firebase background SW init:', e);
 }
 
+// In-memory debounce set to guarantee exactly ONE notification per event
+const recentPushTags = new Map();
+
+function isDuplicatePush(tag) {
+  const now = Date.now();
+  // Purge entries older than 12 seconds
+  for (const [key, timestamp] of recentPushTags.entries()) {
+    if (now - timestamp > 12000) recentPushTags.delete(key);
+  }
+  if (recentPushTags.has(tag)) {
+    return true; // Already processed recently
+  }
+  recentPushTags.set(tag, now);
+  return false;
+}
+
 // Unified, 100% reliable background push listener for FCM and Web Push
 self.addEventListener('push', (event) => {
   let title = 'Baitul Hikmah 🔔';
   let body = 'You have a new update.';
-  let tag = 'bh-push-' + Date.now();
+  let tag = '';
   let url = './#profile';
-  let iconUrl = new URL('icons/icon-192.png', self.location.href).href;
-  let badgeUrl = new URL('icons/icon-192.png', self.location.href).href;
+  let bookId = '';
+  let iconUrl = new URL('icons/icon-192.png', self.location.origin).href;
+  let badgeUrl = new URL('icons/icon-192.png', self.location.origin).href;
 
   if (event.data) {
     try {
@@ -89,16 +106,43 @@ self.addEventListener('push', (event) => {
 
       title = n.title || d.title || title;
       body = n.body || d.body || body;
-      tag = 'bh-notif-' + (d.timestamp || Date.now());
+      bookId = d.bookId || '';
+
+      const rawNotifId = d.notifId || d.id || d.timestamp || '';
+      if (rawNotifId) {
+        tag = 'bh-' + String(rawNotifId).replace(/[^a-zA-Z0-9_-]/g, '_');
+      } else {
+        tag = 'bh-' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+      }
+
       url = d.url || (payload.fcmOptions && payload.fcmOptions.link) || url;
 
       if (n.icon) {
-        try { iconUrl = new URL(n.icon, self.location.href).href; } catch (_) {}
+        try { iconUrl = new URL(n.icon, self.location.origin).href; } catch (_) {}
       }
     } catch (e) {
       const text = event.data.text();
-      if (text) body = text;
+      if (text) {
+        body = text;
+        tag = 'bh-text-' + text.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+      }
     }
+  }
+
+  if (!tag) {
+    tag = 'bh-alert-' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+  }
+
+  // Prevent multiple notifications for the same alert
+  if (isDuplicatePush(tag)) {
+    return;
+  }
+
+  let fullTargetUrl;
+  try {
+    fullTargetUrl = new URL(url, self.location.origin).href;
+  } catch (e) {
+    fullTargetUrl = self.location.origin + '/#profile';
   }
 
   event.waitUntil(
@@ -107,30 +151,55 @@ self.addEventListener('push', (event) => {
       icon: iconUrl,
       badge: badgeUrl,
       requireInteraction: true,
-      renotify: true,
+      renotify: false,
       tag: tag,
       vibrate: [350, 100, 450, 100, 500, 100, 500],
       sound: 'default',
-      data: { url: url }
+      data: {
+        url: fullTargetUrl,
+        bookId: bookId,
+        tag: tag
+      }
     })
   );
 });
 
+// Click notification handler: always focus/open the app page directly
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './#profile';
+
+  const rawUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './#profile';
+  let targetUrl;
+  try {
+    targetUrl = new URL(rawUrl, self.location.origin).href;
+  } catch (e) {
+    targetUrl = self.location.origin + '/#profile';
+  }
+
+  const bookId = (event.notification.data && event.notification.data.bookId) || '';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // 1. If an existing app window is open, focus it and navigate
       for (const client of clientList) {
         if ('focus' in client) {
-          if (client.url.includes('#') && !client.url.includes(targetUrl)) {
-            client.navigate(targetUrl);
+          if (client.postMessage) {
+            client.postMessage({
+              type: 'NOTIFICATION_CLICKED',
+              url: targetUrl,
+              bookId: bookId
+            });
+          }
+          if ('navigate' in client) {
+            client.navigate(targetUrl).catch(() => {});
           }
           return client.focus();
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      // 2. If no window is open, open a new window at the target URL
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
     })
   );
 });
