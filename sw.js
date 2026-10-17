@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v17';
+const CACHE_NAME = 'baitul-hikmah-v18';
 const CORE_APP_SHELL = [
   './',
   './index.html',
@@ -54,47 +54,35 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-let firebaseMessagingInitialized = false;
-
-try {
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
-  importScripts('./firebase-config.js');
-
-  if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_YOUR') === -1) {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(FIREBASE_CONFIG);
-    }
-    const messaging = firebase.messaging();
-    firebaseMessagingInitialized = true;
-  }
-} catch (e) {
-  console.warn('Firebase background SW init:', e);
-}
-
-// In-memory debounce set to guarantee exactly ONE notification per event
+// Dedicated In-Memory Debounce Set to guarantee exactly ONE notification per event
 const recentPushTags = new Map();
 
 function isDuplicatePush(tag) {
+  if (!tag) return false;
   const now = Date.now();
-  // Purge entries older than 12 seconds
+  // Purge entries older than 15 seconds
   for (const [key, timestamp] of recentPushTags.entries()) {
-    if (now - timestamp > 12000) recentPushTags.delete(key);
+    if (now - timestamp > 15000) recentPushTags.delete(key);
   }
   if (recentPushTags.has(tag)) {
-    return true; // Already processed recently
+    return true; // Suppress duplicate push event!
   }
   recentPushTags.set(tag, now);
   return false;
 }
 
-// Unified, 100% reliable background push listener for FCM and Web Push
+// SINGLE AUTHORITATIVE BACKGROUND PUSH LISTENER
+// Pure W3C Push API implementation without Firebase SW SDK conflict
+// Guarantees:
+// 1. Exactly ONE notification shown on the lock screen / notification shade
+// 2. High priority alarm sound & long vibration pattern for phone attention
+// 3. Proper data payload passing for click handling
 self.addEventListener('push', (event) => {
   let title = 'Baitul Hikmah 🔔';
   let body = 'You have a new update.';
   let tag = '';
-  let url = './#profile';
   let bookId = '';
+  let hash = '#profile';
   let iconUrl = new URL('icons/icon-192.png', self.location.origin).href;
   let badgeUrl = new URL('icons/icon-192.png', self.location.origin).href;
 
@@ -107,15 +95,15 @@ self.addEventListener('push', (event) => {
       title = n.title || d.title || title;
       body = n.body || d.body || body;
       bookId = d.bookId || '';
+      hash = d.hash || (bookId ? ('#explore?book=' + encodeURIComponent(bookId)) : '#profile');
 
-      const rawNotifId = d.notifId || d.id || d.timestamp || '';
+      // Use the raw notifId directly as tag to maintain strict 1:1 match with server
+      const rawNotifId = d.notifId || d.id || n.tag || d.timestamp || '';
       if (rawNotifId) {
-        tag = 'bh-' + String(rawNotifId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        tag = String(rawNotifId).replace(/[^a-zA-Z0-9_-]/g, '_');
       } else {
-        tag = 'bh-' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+        tag = 'bh_' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
       }
-
-      url = d.url || (payload.fcmOptions && payload.fcmOptions.link) || url;
 
       if (n.icon) {
         try { iconUrl = new URL(n.icon, self.location.origin).href; } catch (_) {}
@@ -124,25 +112,18 @@ self.addEventListener('push', (event) => {
       const text = event.data.text();
       if (text) {
         body = text;
-        tag = 'bh-text-' + text.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+        tag = 'bh_text_' + text.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
       }
     }
   }
 
   if (!tag) {
-    tag = 'bh-alert-' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+    tag = 'bh_alert_' + (title + '_' + body).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
   }
 
-  // Prevent multiple notifications for the same alert
+  // Prevent duplicate notifications from multiple push events
   if (isDuplicatePush(tag)) {
     return;
-  }
-
-  let fullTargetUrl;
-  try {
-    fullTargetUrl = new URL(url, self.location.origin).href;
-  } catch (e) {
-    fullTargetUrl = self.location.origin + '/#profile';
   }
 
   event.waitUntil(
@@ -156,7 +137,7 @@ self.addEventListener('push', (event) => {
       vibrate: [350, 100, 450, 100, 500, 100, 500],
       sound: 'default',
       data: {
-        url: fullTargetUrl,
+        hash: hash,
         bookId: bookId,
         tag: tag
       }
@@ -164,39 +145,47 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Click notification handler: always focus/open the app page directly
+// NOTIFICATION CLICK HANDLER: DIRECTLY OPENS THE INSTALLED PHONE APP (NOT CHROME OR AI STUDIO)
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const rawUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './#profile';
-  let targetUrl;
-  try {
-    targetUrl = new URL(rawUrl, self.location.origin).href;
-  } catch (e) {
-    targetUrl = self.location.origin + '/#profile';
-  }
+  const data = event.notification.data || {};
+  const bookId = data.bookId || '';
+  const hash = data.hash || (bookId ? ('#explore?book=' + encodeURIComponent(bookId)) : '#profile');
 
-  const bookId = (event.notification.data && event.notification.data.bookId) || '';
+  // Strict scope resolution: always within the installed PWA scope on user's device
+  const appScope = self.registration.scope || (self.location.origin + '/');
+  let targetUrl = appScope;
+  try {
+    targetUrl = new URL(hash, appScope).href;
+  } catch (e) {
+    targetUrl = appScope + '#profile';
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // 1. If an existing app window is open, focus it and navigate
+      // 1. If an app window/PWA is already open (in foreground or background), focus it!
       for (const client of clientList) {
         if ('focus' in client) {
+          client.focus();
           if (client.postMessage) {
             client.postMessage({
               type: 'NOTIFICATION_CLICKED',
               url: targetUrl,
+              hash: hash,
               bookId: bookId
             });
           }
           if ('navigate' in client) {
             client.navigate(targetUrl).catch(() => {});
           }
-          return client.focus();
+          return;
         }
       }
-      // 2. If no window is open, open a new window at the target URL
+
+      // 2. If app is completely closed:
+      // Open targetUrl within self.registration.scope.
+      // In Android WebAPK and iOS Home Screen PWA, opening an URL inside scope opens the INSTALLED PHONE APP!
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }

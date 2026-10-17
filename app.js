@@ -2012,11 +2012,7 @@ async function checkNotifRedDot() {
             playNotificationAlarmSound();
             const topNotif = unalerted[0];
             showHeadsUpNotification(topNotif.title, topNotif.body, topNotif.bookId);
-
-            // Only dispatch OS system notification if app is hidden in background tab
-            if (document.hidden) {
-              showSystemNotification(topNotif.title, topNotif.body, topNotif.bookId, topNotif.id);
-            }
+            // In-app alert already handled above; OS lockscreen/background push is handled exclusively by FCM & sw.js
           }
         }
       }
@@ -2099,7 +2095,8 @@ if (testNotifBtn) {
 
     try {
       showToast('Dispatching test notification to your phone lockscreen...');
-      const res = await api('testNotification', { pushToken: activeToken || '' });
+      const cleanUrl = window.location.origin + window.location.pathname;
+      const res = await api('testNotification', { pushToken: activeToken || '', appUrl: cleanUrl });
       if (res && res.ok) {
         showToast('✅ Live push notification dispatched! Check your phone lockscreen.');
       } else {
@@ -2345,11 +2342,6 @@ async function initPushNotifications(forcePrompt = false) {
 
         playNotificationAlarmSound();
         showHeadsUpNotification(title, body, bookId);
-
-        // Only show system notification if the page is hidden in background tab
-        if (document.hidden) {
-          showSystemNotification(title, body, bookId, notifId);
-        }
         checkNotifRedDot();
       });
 
@@ -2451,7 +2443,8 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
       const isDailyHeartbeatDue = (Date.now() - lastSyncTime > 12 * 60 * 60 * 1000);
 
       if (lastToken !== token || forcePrompt || isDailyHeartbeatDue) {
-        const res = await api('savePushToken', { pushToken: token }).catch((err) => {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        const res = await api('savePushToken', { pushToken: token, appUrl: cleanUrl }).catch((err) => {
           console.warn('savePushToken api call error:', err);
           return null;
         });
@@ -2470,7 +2463,8 @@ async function syncPushToken(messaging, serviceWorkerRegistration, forcePrompt =
     } else {
       const existing = localStorage.getItem('bh_push_token') || null;
       if (existing) {
-        await api('savePushToken', { pushToken: existing }).catch(() => {});
+        const cleanUrl = window.location.origin + window.location.pathname;
+        await api('savePushToken', { pushToken: existing, appUrl: cleanUrl }).catch(() => {});
         return existing;
       }
       if (forcePrompt) {
@@ -2780,4 +2774,26 @@ if ($('closeInstallGuideBtn')) $('closeInstallGuideBtn').onclick = () => $('inst
 if ($('installGuideOkBtn')) $('installGuideOkBtn').onclick = () => $('installGuideModal').classList.add('hidden');
 if ($('installGuideModal') && $('installGuideModal').querySelector('.modal-backdrop')) {
   $('installGuideModal').querySelector('.modal-backdrop').onclick = () => $('installGuideModal').classList.add('hidden');
+}
+
+// Receive click events from Service Worker when phone notification is tapped
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'NOTIFICATION_CLICKED') {
+      const bookId = event.data.bookId || '';
+      if (bookId) {
+        renderPage('explore');
+        setTimeout(() => {
+          if (typeof openBookDetailModal === 'function') {
+            openBookDetailModal(bookId);
+          }
+        }, 300);
+      } else {
+        renderPage('profile');
+        setTimeout(() => {
+          if ($('notifBellBtn')) $('notifBellBtn').click();
+        }, 300);
+      }
+    }
+  });
 }
