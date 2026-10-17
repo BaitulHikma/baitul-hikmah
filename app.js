@@ -7,12 +7,16 @@
 let currentUser = JSON.parse(localStorage.getItem('bh_user') || 'null');
 let allBooks = JSON.parse(localStorage.getItem('bh_cached_books') || '[]');
 let allMembers = JSON.parse(localStorage.getItem('bh_cached_members') || '[]');
+let lastMembersData = JSON.parse(localStorage.getItem('bh_cached_members_data') || 'null');
+if (!lastMembersData && allMembers.length) {
+  lastMembersData = { members: allMembers, totalMembersCount: allMembers.length };
+}
 let allFeaturedPosts = JSON.parse(localStorage.getItem('bh_cached_reviews') || '[]');
 let profileData = JSON.parse(localStorage.getItem('bh_cached_profile') || 'null');
-let lastMembersData = allMembers.length ? { members: allMembers } : null;
 let lastLiveUpdateData = JSON.parse(localStorage.getItem('bh_cached_liveupdates') || 'null');
+let lastNotifData = JSON.parse(localStorage.getItem('bh_cached_notifications') || 'null');
 let booksLoadedOnce = allBooks.length > 0;
-let membersLoadedOnce = allMembers.length > 0;
+let membersLoadedOnce = (lastMembersData && lastMembersData.members && lastMembersData.members.length > 0) || allMembers.length > 0;
 let featuredLoadedOnce = allFeaturedPosts.length > 0;
 let currentExploreFilter = 'all';
 let singleBookId = null;
@@ -22,6 +26,47 @@ let pendingBookFiles = [];
 let selectedFeaturedBook = null;
 let pendingFeaturedImageB64 = '';
 let selectedReviewBookFilter = null;
+
+// Direct WhatsApp App Launcher (Android & iOS Native Intent)
+function openDirectWhatsAppChat(rawPhone, bookName) {
+  const cleanPhone = String(rawPhone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone) {
+    showToast('No WhatsApp number found for this book owner.');
+    return;
+  }
+
+  const greeting = bookName 
+    ? encodeURIComponent(`Assalamu alaikum! I would like to borrow "${bookName}" from Baitul Hikmah.`)
+    : encodeURIComponent('Assalamu alaikum!');
+
+  // whatsapp://send?phone= directly invokes the WhatsApp phone app on Android & iOS
+  const nativeAppUrl = `whatsapp://send?phone=${cleanPhone}&text=${greeting}`;
+  const webFallbackUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${greeting}`;
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isMobile) {
+    // Hidden click on link with target="_top" ensures the phone OS intercepts the scheme and launches WhatsApp native app
+    const link = document.createElement('a');
+    link.href = nativeAppUrl;
+    link.target = '_top';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try { document.body.removeChild(link); } catch (e) {}
+    }, 400);
+
+    // Fallback only if native app failed to open (phone stayed in foreground after 1.5s)
+    setTimeout(() => {
+      if (!document.hidden) {
+        window.location.href = webFallbackUrl;
+      }
+    }, 1500);
+  } else {
+    // Desktop: open WhatsApp Web
+    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${greeting}`, '_blank', 'noopener,noreferrer');
+  }
+}
 
 const PAGES = ['auth', 'profile', 'explore', 'members', 'liveupdate', 'reviews', 'featured', 'addbooks'];
 
@@ -697,9 +742,14 @@ document.querySelectorAll('#detailSquares .square-btn').forEach(btn => {
 
 // EXPLORE PAGE
 async function refreshBooks() {
-  const isFirstLoad = !booksLoadedOnce;
-  if (isFirstLoad) $('bookGrid').innerHTML = getBookSkeletons();
-  else renderBookGrid();
+  // Always render from previous memory first so the page is NEVER empty or blank
+  if (allBooks && allBooks.length > 0) {
+    const totalEl = $('exploreTotalCount');
+    if (totalEl) totalEl.textContent = allBooks.length;
+    renderBookGrid();
+  } else {
+    $('bookGrid').innerHTML = getBookSkeletons();
+  }
 
   try {
     const data = await api('listBooks', {});
@@ -722,7 +772,10 @@ async function refreshBooks() {
       if (b) openBookModal(singleBookId);
     }
   } catch (err) {
-    if (isFirstLoad) { showToast(err.message); $('bookGrid').innerHTML = ''; }
+    if (!allBooks || !allBooks.length) {
+      showToast(err.message);
+      $('bookGrid').innerHTML = '<p class="empty-hint">Could not load books. Please check connection.</p>';
+    }
   }
 }
 
@@ -972,13 +1025,8 @@ $('waConfirmSubmitBtn').onclick = (e) => guardedAction('waconfirm', e.target, as
   btn.textContent = originalText;
   btn.disabled = false;
 
-  const wa = String(data.whatsapp || '').replace(/[^0-9]/g, '');
-  if (wa) {
-    const waUrl = 'https://wa.me/' + wa;
-    window.location.href = waUrl;
-  } else {
-    showToast('No WhatsApp number found for this book owner.');
-  }
+  const targetBookName = (activeModalBook && activeModalBook.bookName) || data.bookName || '';
+  openDirectWhatsAppChat(data.whatsapp, targetBookName);
 });
 
 $('modalRequestBtn').onclick = (e) => guardedAction('borrow-' + activeModalBook.bookId, e.target, async () => {
@@ -1120,18 +1168,28 @@ if ($('memberDetailModal') && $('memberDetailModal').querySelector('.modal-backd
 }
 
 async function refreshMembers() {
-  const isFirstLoad = !membersLoadedOnce;
-  if (isFirstLoad) $('membersList').innerHTML = getMemberSkeletons();
-  else if (lastMembersData) renderMembersUI(lastMembersData);
+  // Always render from previous memory first so page is NEVER empty or blank
+  if (lastMembersData) {
+    renderMembersUI(lastMembersData);
+  } else if (allMembers && allMembers.length > 0) {
+    renderMembersUI({ members: allMembers, totalMembersCount: allMembers.length });
+  } else {
+    $('membersList').innerHTML = getMemberSkeletons();
+  }
 
   try {
     const data = await api('listMembers', {});
     lastMembersData = data;
+    allMembers = data.members || [];
     membersLoadedOnce = true;
-    localStorage.setItem('bh_cached_members', JSON.stringify(data.members || []));
+    localStorage.setItem('bh_cached_members', JSON.stringify(allMembers));
+    localStorage.setItem('bh_cached_members_data', JSON.stringify(data));
     renderMembersUI(data);
   } catch (err) {
-    if (isFirstLoad) { showToast(err.message); $('membersList').innerHTML = ''; }
+    if (!lastMembersData && (!allMembers || !allMembers.length)) {
+      showToast(err.message);
+      $('membersList').innerHTML = '<p class="empty-hint">Could not load members.</p>';
+    }
   }
 }
 
@@ -1226,6 +1284,7 @@ async function refreshFullLiveUpdates() {
   try {
     const data = await api('getLiveUpdates', {});
     lastLiveUpdateData = data;
+    localStorage.setItem('bh_cached_liveupdates', JSON.stringify(data));
     renderFullLiveUpdateList(data);
     if (!liveUpdateDrawerExpanded) {
       startLiveUpdateRotation();
@@ -1240,10 +1299,12 @@ async function refreshFeaturedPosts() {
   const container = $('reviewsGallery') || $('featuredGallery');
   if (!container) return;
 
-  if (!featuredLoadedOnce) {
-    container.innerHTML = getReviewSkeletons();
-  } else {
+  // Always render from previous memory first so reviews page is NEVER empty or blank
+  if (allFeaturedPosts && allFeaturedPosts.length > 0) {
+    if ($('reviewsTotalCount')) $('reviewsTotalCount').textContent = allFeaturedPosts.length;
     renderFeaturedGallery();
+  } else {
+    container.innerHTML = getReviewSkeletons();
   }
 
   try {
@@ -1263,7 +1324,9 @@ async function refreshFeaturedPosts() {
 
     renderFeaturedGallery();
   } catch (err) {
-    if (!featuredLoadedOnce) container.innerHTML = '<p class="empty-hint">No reviews yet.</p>';
+    if (!allFeaturedPosts || !allFeaturedPosts.length) {
+      container.innerHTML = '<p class="empty-hint">No reviews yet.</p>';
+    }
   }
 }
 
@@ -1910,7 +1973,6 @@ $('hadiyaDownloadBtn').onclick = () => {
 };
 
 // NOTIFICATIONS
-let lastNotifData = null;
 let knownNotifIds = null;
 let notifPollInterval = null;
 
@@ -2021,6 +2083,7 @@ async function checkNotifRedDot() {
       currentIds.forEach(id => knownNotifIds.add(id));
       try {
         localStorage.setItem('bh_known_notifs_' + currentUser.id, JSON.stringify(Array.from(knownNotifIds).slice(-100)));
+        localStorage.setItem('bh_cached_notifications', JSON.stringify(data));
       } catch (e) {}
     }
   } catch (err) { }
@@ -2041,6 +2104,7 @@ $('notifBellBtn').onclick = async () => {
   try {
     const data = await api('listNotifications', {});
     lastNotifData = data;
+    localStorage.setItem('bh_cached_notifications', JSON.stringify(data));
     renderNotifList(data);
     if (data.unreadCount > 0) {
       api('markNotificationsRead', {}).then(() => $('notifRedDot').classList.add('hidden')).catch(() => {});
@@ -2639,6 +2703,33 @@ function applyCustomStatBgImages() {
 // BOOT
 (function boot() {
   applyCustomStatBgImages();
+
+  // Instant Memory Pre-Hydration: Fill every single page from previous memory immediately
+  if (profileData) {
+    renderProfileView(profileData);
+  }
+  if (allBooks && allBooks.length > 0) {
+    const totalEl = $('exploreTotalCount');
+    if (totalEl) totalEl.textContent = allBooks.length;
+    renderBookGrid();
+  }
+  if (lastMembersData) {
+    renderMembersUI(lastMembersData);
+  } else if (allMembers && allMembers.length > 0) {
+    renderMembersUI({ members: allMembers, totalMembersCount: allMembers.length });
+  }
+  if (lastLiveUpdateData) {
+    renderFullLiveUpdateList(lastLiveUpdateData);
+  }
+  if (allFeaturedPosts && allFeaturedPosts.length > 0) {
+    const revTotal = $('reviewsTotalCount');
+    if (revTotal) revTotal.textContent = allFeaturedPosts.length;
+    renderFeaturedGallery();
+  }
+  if (lastNotifData) {
+    renderNotifList(lastNotifData);
+  }
+
   const startHash = (location.hash || '').slice(1);
   if (currentUser) {
     if (startHash === 'notifications') {
@@ -2650,17 +2741,20 @@ function applyCustomStatBgImages() {
       renderPage(PAGES.includes(startHash) ? startHash : 'profile');
     }
     setTimeout(() => {
+      refreshProfile();
       refreshBooks();
       refreshFeaturedPosts();
+      refreshMembers();
+      refreshFullLiveUpdates();
       startNotificationPolling();
       initPushNotifications();
-    }, 100);
+    }, 80);
   } else {
     showAuthTab('loginForm');
     renderPage('auth');
     initPushNotifications();
   }
-  setTimeout(hideBootLoader, 200);
+  setTimeout(hideBootLoader, 100);
 })();
 
 // PWA INSTALL
