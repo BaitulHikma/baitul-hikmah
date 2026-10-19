@@ -257,7 +257,8 @@
 <!-- EXPLORE / LIBRARY PAGE -->
 <section id="page-explore" class="page hidden">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-    <h2 class="page-title" style="margin:0;">Explore (Total: <span id="exploreTotalCount">0</span> books)</h2>
+    <h2 class="page-title explore-title" style="margin:0;">Explore (Total: <span id="exploreTotalCount">0</span> books)</h2>
+    <select id="categoryFilter" class="category-filter" aria-label="Category"><option value="">Category</option><option value="Tafsir">Tafsir</option><option value="Hadith">Hadith</option><option value="Seerah">Seerah</option><option value="Aqeedah">Aqeedah</option><option value="Tazkiyah">Tazkiyah</option><option value="Tasawwuf">Tasawwuf</option><option value="Spiritual">Spiritual</option><option value="Akhlaq">Akhlaq</option><option value="Motivational">Motivational</option><option value="Marriage">Marriage</option><option value="Dawah">Dawah</option><option value="Dua">Dua</option><option value="Finance">Finance</option></select>
   </div>
   <div class="explore-toolbar">
     <input type="search" id="bookSearch" placeholder="Search by book, writer, publisher, owner...">
@@ -438,12 +439,6 @@
     </div>
     <div class="story-image-wrap" id="storyImageWrap">
       <img id="zoomModalImg" src="" alt="Book page image" class="story-img">
-      <!-- Floating Zoom Controls for Book Page Image -->
-      <div id="storyZoomControls" class="story-zoom-controls hidden">
-        <button type="button" id="storyZoomOutBtn" class="story-zoom-btn" title="Zoom out" aria-label="Zoom out">−</button>
-        <button type="button" id="storyZoomResetBtn" class="story-zoom-level" title="Reset zoom (or double-tap image)" aria-label="Reset zoom">100%</button>
-        <button type="button" id="storyZoomInBtn" class="story-zoom-btn" title="Zoom in" aria-label="Zoom in">+</button>
-      </div>
       <!-- Fallback text card when no image was uploaded -->
       <div id="zoomModalTextCard" class="story-text-card hidden">
         <img id="zoomModalCoverImg" src="" class="story-text-cover" alt="">
@@ -549,6 +544,11 @@
     <div class="field">
       <label>Publisher</label>
       <input type="text" id="editMetaPublisher">
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <select id="editMetaCategory"><option value="">— None —</option><option value="__custom__">Custom…</option><option value="Tafsir">Tafsir</option><option value="Hadith">Hadith</option><option value="Seerah">Seerah</option><option value="Aqeedah">Aqeedah</option><option value="Tazkiyah">Tazkiyah</option><option value="Tasawwuf">Tasawwuf</option><option value="Spiritual">Spiritual</option><option value="Akhlaq">Akhlaq</option><option value="Motivational">Motivational</option><option value="Marriage">Marriage</option><option value="Dawah">Dawah</option><option value="Dua">Dua</option><option value="Finance">Finance</option></select>
+      <input type="text" id="editMetaCustomCategory" class="hidden" placeholder="Type custom category (this book only)" style="margin-top:8px;">
     </div>
     <div class="field">
       <label>Page count</label>
