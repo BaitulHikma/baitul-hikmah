@@ -86,9 +86,9 @@ function sortBooksNewestFirst(books) {
   });
 }
 
-function driveImg(fileId, fallback) {
+function driveImg(fileId, fallback, width) {
   if (!fileId) return fallback || 'https://placehold.co/300x400?text=No+Image';
-  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400';
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w' + (width || 400);
 }
 
 function showToast(msg) {
@@ -1525,7 +1525,7 @@ window.openFeaturedZoomModal = (postId) => {
 
   const posterDp = driveImg(p.posterDpFileId);
   const hasPhoto = !!(p.imageFileId && String(p.imageFileId).trim().length > 0);
-  const mainImg = hasPhoto ? driveImg(p.imageFileId) : '';
+  const mainImg = hasPhoto ? driveImg(p.imageFileId, '', 1600) : '';
   const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
   const coverThumb = coverFileId ? driveImg(coverFileId) : '';
 
