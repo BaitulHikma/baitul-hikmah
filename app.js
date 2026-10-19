@@ -1666,6 +1666,81 @@ if (closeZoomBackdrop) closeZoomBackdrop.onclick = () => {
   if (modal) modal.classList.add('hidden');
 };
 
+// BOOK PAGE IMAGE PINCH-ZOOM (review modal only: #zoomModalImg)
+(function initReviewImageZoom() {
+  const img = $('zoomModalImg');
+  const wrap = $('storyImageWrap');
+  if (!img || !wrap) return;
+  const MAX = 5;
+  let scale = 1, tx = 0, ty = 0;
+  const pts = new Map();
+  let startDist = 0, startScale = 1, lastTap = 0, moved = false;
+
+  function clamp() {
+    const w = img.offsetWidth * scale, h = img.offsetHeight * scale;
+    const mx = Math.max(0, (w - wrap.clientWidth) / 2);
+    const my = Math.max(0, (h - wrap.clientHeight) / 2);
+    tx = Math.min(mx, Math.max(-mx, tx));
+    ty = Math.min(my, Math.max(-my, ty));
+  }
+  function apply() {
+    if (scale <= 1) { scale = 1; tx = 0; ty = 0; }
+    clamp();
+    img.style.transform = scale === 1 ? '' : `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+  function reset() { scale = 1; tx = 0; ty = 0; pts.clear(); apply(); }
+  const dist = () => { const p = [...pts.values()]; return Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y); };
+
+  img.addEventListener('pointerdown', (e) => {
+    img.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moved = false;
+    if (pts.size === 2) { startDist = dist(); startScale = scale; }
+  });
+  img.addEventListener('pointermove', (e) => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    if (pts.size === 2) {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      scale = Math.min(MAX, Math.max(1, startScale * dist() / (startDist || 1)));
+      moved = true; apply();
+    } else if (scale > 1) {
+      tx += e.clientX - p.x; ty += e.clientY - p.y;
+      if (Math.abs(e.clientX - p.x) + Math.abs(e.clientY - p.y) > 2) moved = true;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      apply();
+    }
+  });
+  function end(e) {
+    const wasSingle = pts.size === 1;
+    pts.delete(e.pointerId);
+    if (e.type === 'pointerup' && wasSingle && !moved) {
+      const now = Date.now();
+      if (now - lastTap < 300) { scale > 1 ? reset() : (scale = 2.5, apply()); lastTap = 0; }
+      else lastTap = now;
+    }
+    if (scale <= 1) reset();
+  }
+  img.addEventListener('pointerup', end);
+  img.addEventListener('pointercancel', end);
+  wrap.addEventListener('wheel', (e) => {
+    if (img.classList.contains('hidden')) return;
+    e.preventDefault();
+    scale = Math.min(MAX, Math.max(1, scale * (e.deltaY < 0 ? 1.15 : 0.87)));
+    apply();
+  }, { passive: false });
+
+  // Reset zoom each time a review opens (wraps existing function, no logic changed)
+  const origOpen = window.openFeaturedZoomModal;
+  window.openFeaturedZoomModal = function () {
+    reset();
+    return origOpen.apply(this, arguments);
+  };
+  const closeBtn = $('closeReviewZoomBtn'), closeBd = $('closeReviewZoomBackdrop');
+  if (closeBtn) closeBtn.addEventListener('click', reset);
+  if (closeBd) closeBd.addEventListener('click', reset);
+})();
+
 // POST REVIEW / FEATURED MODAL
 function resetPostReviewForm() {
   selectedFeaturedBook = null;
