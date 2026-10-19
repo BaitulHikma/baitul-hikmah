@@ -338,6 +338,129 @@ function compressImage(file, maxKB) {
   });
 }
 
+// Dedicated compressor ONLY for review section book page images.
+// Targets around 100KB (approx 90KB - 105KB) to avoid over-compression and preserve high text readability.
+function compressReviewPageImage(file, targetKB) {
+  targetKB = targetKB || 100;
+  const targetMinKB = 88;
+  const targetMaxKB = 108;
+
+  // If already under or around 100KB, read directly without lossy downscaling
+  if (file && file.size && file.size <= targetMaxKB * 1024 && (file.type === 'image/jpeg' || file.type === 'image/webp' || file.type === 'image/png')) {
+    return fileToBase64(file);
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const origW = img.naturalWidth || img.width;
+        const origH = img.naturalHeight || img.height;
+        if (!origW || !origH) {
+          reject(new Error('Invalid image dimensions.'));
+          return;
+        }
+
+        // Keep maximum dimension up to 1800px so book page text stays sharp
+        let scale = Math.min(1.0, 1800 / Math.max(origW, origH));
+        let quality = 0.82;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let bestBlob = null;
+        let bestDiff = Infinity;
+        let bestUnderMaxBlob = null;
+        let bestUnderMaxDiff = Infinity;
+        let steps = 0;
+        const maxSteps = 10;
+
+        function renderAndCheck() {
+          const w = Math.max(1, Math.round(origW * scale));
+          const h = Math.max(1, Math.round(origH * scale));
+          canvas.width = w;
+          canvas.height = h;
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              if (bestUnderMaxBlob || bestBlob) {
+                finishWithBlob(bestUnderMaxBlob || bestBlob);
+              } else {
+                reject(new Error('Could not process review image.'));
+              }
+              return;
+            }
+
+            steps++;
+            const kb = blob.size / 1024;
+            const diff = Math.abs(kb - targetKB);
+
+            if (kb <= targetMaxKB && diff < bestUnderMaxDiff) {
+              bestUnderMaxBlob = blob;
+              bestUnderMaxDiff = diff;
+            }
+            if (diff < bestDiff) {
+              bestBlob = blob;
+              bestDiff = diff;
+            }
+
+            // Sweet spot: around 100KB
+            if (kb >= targetMinKB && kb <= targetMaxKB) {
+              finishWithBlob(blob);
+              return;
+            }
+
+            if (steps >= maxSteps) {
+              finishWithBlob(bestUnderMaxBlob || bestBlob);
+              return;
+            }
+
+            // Adjust adaptively
+            if (kb > targetMaxKB) {
+              if (quality > 0.65) {
+                quality = Math.max(0.55, quality - 0.12);
+              } else {
+                const ratio = Math.sqrt(targetKB / kb);
+                scale = Math.max(0.1, scale * Math.min(0.9, ratio * 1.04));
+                quality = 0.78; // reset quality so text stays sharp at lower dimension
+              }
+            } else {
+              // kb < targetMinKB
+              if (quality < 0.90) {
+                quality = Math.min(0.94, quality + 0.12);
+              } else if (scale < 1.0) {
+                const ratio = Math.sqrt(targetKB / kb);
+                scale = Math.min(1.0, scale * Math.max(1.1, ratio * 0.96));
+              } else {
+                finishWithBlob(bestUnderMaxBlob || bestBlob);
+                return;
+              }
+            }
+
+            renderAndCheck();
+          }, 'image/jpeg', quality);
+        }
+
+        function finishWithBlob(blobToUse) {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = reject;
+          fr.readAsDataURL(blobToUse);
+        }
+
+        renderAndCheck();
+      };
+      img.onerror = () => reject(new Error('Could not read image.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // API CALL
 async function api(action, payload) {
   if (!API_URL || API_URL.indexOf('PASTE_YOUR') !== -1) {
@@ -754,10 +877,6 @@ async function refreshBooks() {
   try {
     const data = await api('listBooks', {});
     allBooks = sortBooksNewestFirst(data.books || []);
-    if (Array.isArray(data.categories) && data.categories.length) {
-      localStorage.setItem('bh_cached_cats', JSON.stringify(data.categories));
-      populateCategorySelects(data.categories);
-    }
     booksLoadedOnce = true;
     localStorage.setItem('bh_cached_books', JSON.stringify(allBooks));
 
@@ -796,37 +915,6 @@ document.querySelectorAll('.chip').forEach(chip => {
 $('bookSearch').oninput = () => { singleBookId = null; renderBookGrid(); };
 $('filterBtn').onclick = () => $('filterChips').scrollIntoView({ behavior: 'smooth' });
 
-let CATEGORY_LIST = ['Tafsir', 'Hadith', 'Seerah', 'Aqeedah', 'Tazkiyah', 'Tasawwuf', 'Spiritual', 'Akhlaq', 'Motivational', 'Marriage', 'Dawah', 'Dua', 'Finance'];
-function populateCategorySelects(list) {
-  if (Array.isArray(list) && list.length) CATEGORY_LIST = list.map(String);
-  const opts = CATEGORY_LIST.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
-  const f = $('categoryFilter'), m = $('editMetaCategory');
-  if (f) { const v = f.value; f.innerHTML = '<option value="">Category</option>' + opts; f.value = CATEGORY_LIST.includes(v) ? v : ''; }
-  if (m) { const v = m.value; m.innerHTML = '<option value="">None</option><option value="__custom__">Custom…</option>' + opts; m.value = (v === '__custom__' || CATEGORY_LIST.includes(v)) ? v : ''; }
-}
-function catLabel(b) {
-  return b && b.category ? '&nbsp;&nbsp;<span class="book-cat">(' + escapeHtml(b.category) + ')</span>' : '';
-}
-try { populateCategorySelects(JSON.parse(localStorage.getItem('bh_cached_cats') || 'null')); } catch (_) {}
-function setMetaCategory(val) {
-  const sel = $('editMetaCategory'), inp = $('editMetaCustomCategory');
-  val = String(val || '').trim();
-  if (!val) { sel.value = ''; inp.value = ''; inp.classList.add('hidden'); return; }
-  const match = CATEGORY_LIST.find(c => c.toLowerCase() === val.toLowerCase());
-  if (match) { sel.value = match; inp.value = ''; inp.classList.add('hidden'); }
-  else { sel.value = '__custom__'; inp.value = val; inp.classList.remove('hidden'); }
-}
-function getMetaCategory() {
-  const v = $('editMetaCategory').value;
-  return v === '__custom__' ? $('editMetaCustomCategory').value.trim() : v;
-}
-$('editMetaCategory').onchange = () => {
-  const isCustom = $('editMetaCategory').value === '__custom__';
-  $('editMetaCustomCategory').classList.toggle('hidden', !isCustom);
-  if (isCustom) $('editMetaCustomCategory').focus();
-};
-$('categoryFilter').onchange = () => renderBookGrid();
-
 function renderBookGrid() {
   const q = $('bookSearch').value.trim().toLowerCase();
   let list = allBooks.slice();
@@ -849,10 +937,7 @@ function renderBookGrid() {
       const borrowedIds = (profileData && profileData.borrowedBooks || []).map(r => r.bookId);
       list = list.filter(b => borrowedIds.includes(b.bookId));
     }
-    const catSel = $('categoryFilter') ? $('categoryFilter').value : '';
-    if (catSel) list = list.filter(b => String(b.category || '').toLowerCase() === catSel.toLowerCase());
     if (q) list = list.filter(b =>
-      String(b.category || '').toLowerCase().includes(q) ||
       String(b.bookName || '').toLowerCase().includes(q) ||
       String(b.writer || '').toLowerCase().includes(q) ||
       String(b.publisher || '').toLowerCase().includes(q) ||
@@ -885,7 +970,7 @@ function renderBookGrid() {
         </div>
       </div>
       <div class="book-card-body">
-        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>${b.category ? '<div class="book-cat book-cat-line">(' + escapeHtml(b.category) + ')</div>' : ''}
+        <div class="name">${escapeHtml(b.bookName || 'Untitled')}</div>
         <div class="sub">${escapeHtml(b.writer || '')}</div>
         <div class="sub">Owner: ${escapeHtml(b.ownerName || '')}</div>
         <div class="book-status ${statusClass}">${statusText}</div>
@@ -903,7 +988,7 @@ window.openBookModal = (bookId) => {
 
   try {
     $('modalImage').src = driveImg(b.imageFileId);
-    $('modalBookName').innerHTML = escapeHtml(b.bookName || 'Untitled book') + catLabel(b);
+    $('modalBookName').textContent = b.bookName || 'Untitled book';
     $('modalWriter').textContent = 'Writer: ' + (b.writer || '—');
     $('modalPublisher').textContent = 'Publisher: ' + (b.publisher || '—') + (b.pageCount ? ' · ' + b.pageCount + ' pages' : '');
     $('modalOwner').textContent = 'Owner: ' + (b.ownerName || '');
@@ -1110,7 +1195,6 @@ $('modalEditIconBtn').onclick = () => {
   $('editMetaWriter').value = activeModalBook.writer || '';
   $('editMetaPublisher').value = activeModalBook.publisher || '';
   $('editMetaPageCount').value = activeModalBook.pageCount || '';
-  setMetaCategory(activeModalBook.category);
 
   const downloadWrap = $('editMetaDownloadLinkWrap');
   if (downloadWrap) {
@@ -1731,18 +1815,19 @@ if (postImgInput) {
     const statusEl = $('reviewCompressStatus') || $('featuredCompressStatus');
     if (statusEl) {
       statusEl.classList.remove('hidden');
-      statusEl.textContent = 'Compressing image under 100KB…';
+      statusEl.textContent = 'Optimizing page image to ~100KB…';
     }
 
     try {
-      pendingFeaturedImageB64 = await compressImage(file, 100);
+      pendingFeaturedImageB64 = await compressReviewPageImage(file, 100);
       const previewImg = $('reviewImgPreview') || $('featuredImgPreview');
       if (previewImg) previewImg.src = pendingFeaturedImageB64;
       const previewWrap = $('reviewImgPreviewWrap') || $('featuredImgPreviewWrap');
       if (previewWrap) previewWrap.classList.remove('hidden');
       if (statusEl) {
-        statusEl.textContent = 'Image compressed successfully.';
-        setTimeout(() => statusEl.classList.add('hidden'), 1500);
+        const approxKB = Math.round((pendingFeaturedImageB64.length * 3 / 4) / 1024);
+        statusEl.textContent = '✓ Page image optimized (' + approxKB + ' KB). High clarity preserved.';
+        setTimeout(() => statusEl.classList.add('hidden'), 2500);
       }
       validateFeaturedPostForm();
     } catch (err) {
@@ -1879,7 +1964,7 @@ $('bookFilesInput').onchange = async () => {
     statusEl.textContent = 'Compressing photo ' + (i + 1) + ' of ' + files.length + '…';
     try {
       const base64 = await compressImage(files[i], 100);
-      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '', category: '', pageCount: '', downloadLink: '' });
+      pendingBookFiles.push({ base64, bookName: '', writer: '', publisher: '', pageCount: '', downloadLink: '' });
     } catch (err) {
       showToast('Skipped photo: ' + err.message);
     }
@@ -1914,7 +1999,6 @@ window.openEditMetaForPending = (index) => {
   $('editMetaWriter').value = pf.writer || '';
   $('editMetaPublisher').value = pf.publisher || '';
   $('editMetaPageCount').value = pf.pageCount || '';
-  setMetaCategory(pf.category);
 
   const downloadWrap = $('editMetaDownloadLinkWrap');
   if (downloadWrap) {
@@ -1938,7 +2022,6 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   const writer = $('editMetaWriter').value.trim();
   const publisher = $('editMetaPublisher').value.trim();
   const pageCount = $('editMetaPageCount').value.trim();
-  const category = getMetaCategory();
   const downloadLink = $('editMetaDownloadLink') ? $('editMetaDownloadLink').value.trim() : '';
 
   if (editMetaContext.mode === 'pending') {
@@ -1947,7 +2030,6 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
       pf.bookName = bookName;
       pf.writer = writer;
       pf.publisher = publisher;
-      pf.category = category;
       pf.pageCount = pageCount;
       pf.downloadLink = downloadLink;
     }
@@ -1959,13 +2041,12 @@ $('editMetaSaveBtn').onclick = (e) => guardedAction('editmeta', e.target, async 
   const bookId = editMetaContext.bookId;
   $('editMetaModal').classList.add('hidden');
   const isPdf = activeModalBook ? activeModalBook.isPdf : false;
-  await api('editBook', { bookId, bookName, writer, publisher, category, pageCount, downloadLink, isPdf });
+  await api('editBook', { bookId, bookName, writer, publisher, pageCount, downloadLink, isPdf });
   showToast('Book details updated.');
   if (activeModalBook && activeModalBook.bookId === bookId) {
     activeModalBook.bookName = bookName;
     activeModalBook.writer = writer;
     activeModalBook.publisher = publisher;
-    activeModalBook.category = category;
     activeModalBook.pageCount = pageCount;
     activeModalBook.downloadLink = downloadLink;
     openBookModal(bookId);
@@ -1983,7 +2064,6 @@ $('uploadBooksBtn').onclick = (e) => guardedAction('uploadbooks', e.target, asyn
     bookName: pf.bookName || '',
     writer: pf.writer || '',
     publisher: pf.publisher || '',
-    category: pf.category || '',
     pageCount: pf.pageCount || '',
     downloadLink: pf.downloadLink || '',
     isPdf: addBooksIsPdf
