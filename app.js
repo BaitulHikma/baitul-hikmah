@@ -86,9 +86,11 @@ function sortBooksNewestFirst(books) {
   });
 }
 
-function driveImg(fileId, fallback) {
+function driveImg(fileId, fallback, size) {
   if (!fileId) return fallback || 'https://placehold.co/300x400?text=No+Image';
-  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400';
+  if (String(fileId).startsWith('data:') || String(fileId).startsWith('http')) return fileId;
+  const w = size ? ('w' + size) : 'w400';
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=' + w;
 }
 
 function showToast(msg) {
@@ -1600,6 +1602,9 @@ window.openFeaturedZoomModal = (postId) => {
   const p = allFeaturedPosts.find(x => x.id === postId);
   if (!p) return;
 
+  // Reset any previous zoom state immediately on open
+  resetBookPageZoom(false);
+
   // Track & increment view counts
   p.views = (parseInt(p.views, 10) || 0) + 1;
   const viewsEl = $('storyZoomViewsCount');
@@ -1609,7 +1614,8 @@ window.openFeaturedZoomModal = (postId) => {
 
   const posterDp = driveImg(p.posterDpFileId);
   const hasPhoto = !!(p.imageFileId && String(p.imageFileId).trim().length > 0);
-  const mainImg = hasPhoto ? driveImg(p.imageFileId) : '';
+  // Fetch high-resolution image for zoom modal (w1800) instead of blurry low-res thumbnail
+  const mainImg = hasPhoto ? driveImg(p.imageFileId, '', 1800) : '';
   const coverFileId = p.bookCoverFileId || (allBooks.find(b => b.bookId === p.bookId) || {}).imageFileId;
   const coverThumb = coverFileId ? driveImg(coverFileId) : '';
 
@@ -1648,6 +1654,7 @@ window.openFeaturedZoomModal = (postId) => {
       imgEl.classList.remove('hidden');
     }
     if (textCard) textCard.classList.add('hidden');
+    if ($('storyZoomControls')) $('storyZoomControls').classList.remove('hidden');
   } else {
     if (imgEl) imgEl.classList.add('hidden');
     if (textCard) {
@@ -1664,6 +1671,7 @@ window.openFeaturedZoomModal = (postId) => {
         textBody.textContent = captionVal ? `"${captionVal}"` : 'Book review by ' + (p.memberName || 'a member') + '.';
       }
     }
+    if ($('storyZoomControls')) $('storyZoomControls').classList.add('hidden');
   }
 
   // Render Caption below photo in Zoom Modal
@@ -1715,6 +1723,7 @@ window.openFeaturedZoomModal = (postId) => {
       guardedAction('delfeature-' + p.id, deleteBtn, async () => {
         const modal = $('reviewZoomModal') || $('featuredZoomModal');
         if (modal) modal.classList.add('hidden');
+        resetBookPageZoom(false);
         await api('deleteFeaturedPost', { postId: p.id }).catch(err => { refreshFeaturedPosts(); throw err; });
         showToast('Review deleted.');
         refreshFeaturedPosts();
@@ -1729,6 +1738,7 @@ window.openFeaturedZoomModal = (postId) => {
       e.stopPropagation();
       const modal = $('reviewZoomModal') || $('featuredZoomModal');
       if (modal) modal.classList.add('hidden');
+      resetBookPageZoom(false);
       if (p.bookId) viewBookFromProfile(p.bookId);
       else goPage('explore');
     };
@@ -1742,13 +1752,222 @@ const closeZoomBtn = $('closeReviewZoomBtn') || $('closeFeaturedZoomBtn');
 if (closeZoomBtn) closeZoomBtn.onclick = () => {
   const modal = $('reviewZoomModal') || $('featuredZoomModal');
   if (modal) modal.classList.add('hidden');
+  resetBookPageZoom(false);
 };
 
 const closeZoomBackdrop = $('closeReviewZoomBackdrop') || $('closeFeaturedZoomBackdrop');
 if (closeZoomBackdrop) closeZoomBackdrop.onclick = () => {
   const modal = $('reviewZoomModal') || $('featuredZoomModal');
   if (modal) modal.classList.add('hidden');
+  resetBookPageZoom(false);
 };
+
+// INTERACTIVE ZOOM & PAN CONTROLLER ONLY FOR REVIEW BOOK PAGE IMAGES
+let bookPageZoomScale = 1;
+let bookPageTranslateX = 0;
+let bookPageTranslateY = 0;
+let bookPageIsDragging = false;
+let bookPageStartX = 0;
+let bookPageStartY = 0;
+let bookPageInitialPinchDistance = 0;
+let bookPageInitialPinchScale = 1;
+let bookPageLastTapTime = 0;
+
+function resetBookPageZoom(animate = false) {
+  bookPageZoomScale = 1;
+  bookPageTranslateX = 0;
+  bookPageTranslateY = 0;
+  bookPageIsDragging = false;
+  bookPageInitialPinchDistance = 0;
+  const imgEl = $('zoomModalImg') || $('storyZoomImg');
+  if (imgEl) {
+    imgEl.style.transition = animate ? 'transform 0.2s cubic-bezier(0.2, 0, 0.2, 1)' : 'none';
+    imgEl.style.transform = 'translate3d(0px, 0px, 0px) scale(1)';
+    imgEl.classList.remove('is-zoomed', 'is-dragging');
+  }
+  const levelEl = $('storyZoomResetBtn');
+  if (levelEl) levelEl.textContent = '100%';
+}
+
+function updateBookPageZoomTransform(animate = true) {
+  const imgEl = $('zoomModalImg') || $('storyZoomImg');
+  const wrap = $('storyImageWrap');
+  if (!imgEl || !wrap) return;
+
+  if (bookPageZoomScale <= 1.02) {
+    bookPageZoomScale = 1;
+    bookPageTranslateX = 0;
+    bookPageTranslateY = 0;
+  } else {
+    // Keep translation within reasonable bounds so book page doesn't get lost
+    const wrapW = wrap.clientWidth || 320;
+    const wrapH = wrap.clientHeight || 400;
+    const imgW = (imgEl.clientWidth || wrapW) * bookPageZoomScale;
+    const imgH = (imgEl.clientHeight || wrapH) * bookPageZoomScale;
+    const maxX = Math.max(0, (imgW - wrapW) / 2 + 60);
+    const maxY = Math.max(0, (imgH - wrapH) / 2 + 60);
+    bookPageTranslateX = Math.min(maxX, Math.max(-maxX, bookPageTranslateX));
+    bookPageTranslateY = Math.min(maxY, Math.max(-maxY, bookPageTranslateY));
+  }
+
+  imgEl.style.transition = animate ? 'transform 0.2s cubic-bezier(0.2, 0, 0.2, 1)' : 'none';
+  imgEl.style.transform = `translate3d(${Math.round(bookPageTranslateX)}px, ${Math.round(bookPageTranslateY)}px, 0px) scale(${bookPageZoomScale.toFixed(2)})`;
+
+  imgEl.classList.toggle('is-zoomed', bookPageZoomScale > 1.05);
+
+  const levelEl = $('storyZoomResetBtn');
+  if (levelEl) {
+    levelEl.textContent = Math.round(bookPageZoomScale * 100) + '%';
+  }
+}
+
+function initBookPageZoom() {
+  const imgEl = $('zoomModalImg') || $('storyZoomImg');
+  const wrap = $('storyImageWrap');
+  if (!imgEl || !wrap) return;
+
+  // Zoom In button (+)
+  if ($('storyZoomInBtn')) {
+    $('storyZoomInBtn').onclick = (e) => {
+      e.stopPropagation();
+      bookPageZoomScale = Math.min(4.5, (bookPageZoomScale < 1 ? 1 : bookPageZoomScale) + 0.6);
+      updateBookPageZoomTransform(true);
+    };
+  }
+
+  // Zoom Out button (-)
+  if ($('storyZoomOutBtn')) {
+    $('storyZoomOutBtn').onclick = (e) => {
+      e.stopPropagation();
+      bookPageZoomScale = Math.max(1, bookPageZoomScale - 0.6);
+      if (bookPageZoomScale <= 1.05) resetBookPageZoom(true);
+      else updateBookPageZoomTransform(true);
+    };
+  }
+
+  // Reset / Toggle button (100%)
+  if ($('storyZoomResetBtn')) {
+    $('storyZoomResetBtn').onclick = (e) => {
+      e.stopPropagation();
+      if (bookPageZoomScale > 1.05) {
+        resetBookPageZoom(true);
+      } else {
+        bookPageZoomScale = 2.4;
+        updateBookPageZoomTransform(true);
+      }
+    };
+  }
+
+  // Double-tap on the image to zoom in/out
+  wrap.addEventListener('click', (e) => {
+    if (e.target !== imgEl && e.target !== wrap) return;
+    const now = Date.now();
+    if (now - bookPageLastTapTime < 340) {
+      // Double tap detected!
+      e.preventDefault();
+      if (bookPageZoomScale > 1.05) {
+        resetBookPageZoom(true);
+      } else {
+        bookPageZoomScale = 2.4;
+        const rect = wrap.getBoundingClientRect();
+        const tapX = e.clientX - (rect.left + rect.width / 2);
+        const tapY = e.clientY - (rect.top + rect.height / 2);
+        bookPageTranslateX = -tapX * 0.8;
+        bookPageTranslateY = -tapY * 0.8;
+        updateBookPageZoomTransform(true);
+      }
+      bookPageLastTapTime = 0;
+    } else {
+      bookPageLastTapTime = now;
+    }
+  });
+
+  // Touch Events (Pinch to zoom & Pan)
+  wrap.addEventListener('touchstart', (e) => {
+    if (e.target !== imgEl && !wrap.contains(e.target)) return;
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      bookPageIsDragging = false;
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      bookPageInitialPinchDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      bookPageInitialPinchScale = bookPageZoomScale;
+    } else if (e.touches.length === 1 && bookPageZoomScale > 1.02) {
+      bookPageIsDragging = true;
+      bookPageStartX = e.touches[0].clientX - bookPageTranslateX;
+      bookPageStartY = e.touches[0].clientY - bookPageTranslateY;
+      imgEl.classList.add('is-dragging');
+    }
+  }, { passive: false });
+
+  wrap.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const factor = dist / (bookPageInitialPinchDistance || 1);
+      bookPageZoomScale = Math.min(4.5, Math.max(1, bookPageInitialPinchScale * factor));
+      updateBookPageZoomTransform(false);
+    } else if (e.touches.length === 1 && bookPageIsDragging) {
+      e.preventDefault();
+      bookPageTranslateX = e.touches[0].clientX - bookPageStartX;
+      bookPageTranslateY = e.touches[0].clientY - bookPageStartY;
+      updateBookPageZoomTransform(false);
+    }
+  }, { passive: false });
+
+  wrap.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2 && bookPageInitialPinchDistance) {
+      bookPageInitialPinchDistance = 0;
+      if (bookPageZoomScale <= 1.05) resetBookPageZoom(true);
+      else updateBookPageZoomTransform(true);
+    }
+    if (e.touches.length === 0 && bookPageIsDragging) {
+      bookPageIsDragging = false;
+      imgEl.classList.remove('is-dragging');
+      if (bookPageZoomScale <= 1.05) resetBookPageZoom(true);
+      else updateBookPageZoomTransform(true);
+    }
+  });
+
+  // Mouse wheel zoom
+  wrap.addEventListener('wheel', (e) => {
+    if (imgEl.classList.contains('hidden')) return;
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.35 : -0.35;
+    bookPageZoomScale = Math.min(4.5, Math.max(1, bookPageZoomScale + delta));
+    if (bookPageZoomScale <= 1.05) resetBookPageZoom(true);
+    else updateBookPageZoomTransform(true);
+  }, { passive: false });
+
+  // Mouse drag to pan
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.target !== imgEl || bookPageZoomScale <= 1.05) return;
+    e.preventDefault();
+    bookPageIsDragging = true;
+    bookPageStartX = e.clientX - bookPageTranslateX;
+    bookPageStartY = e.clientY - bookPageTranslateY;
+    imgEl.classList.add('is-dragging');
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!bookPageIsDragging) return;
+    e.preventDefault();
+    bookPageTranslateX = e.clientX - bookPageStartX;
+    bookPageTranslateY = e.clientY - bookPageStartY;
+    updateBookPageZoomTransform(false);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (bookPageIsDragging) {
+      bookPageIsDragging = false;
+      imgEl.classList.remove('is-dragging');
+      updateBookPageZoomTransform(true);
+    }
+  });
+}
+initBookPageZoom();
 
 // POST REVIEW / FEATURED MODAL
 function resetPostReviewForm() {
@@ -1815,11 +2034,11 @@ if (postImgInput) {
     const statusEl = $('reviewCompressStatus') || $('featuredCompressStatus');
     if (statusEl) {
       statusEl.classList.remove('hidden');
-      statusEl.textContent = 'Optimizing page image to ~100KB…';
+      statusEl.textContent = 'Optimizing page image to ~150-160KB…';
     }
 
     try {
-      pendingFeaturedImageB64 = await compressReviewPageImage(file, 100);
+      pendingFeaturedImageB64 = await compressReviewPageImage(file, 155);
       const previewImg = $('reviewImgPreview') || $('featuredImgPreview');
       if (previewImg) previewImg.src = pendingFeaturedImageB64;
       const previewWrap = $('reviewImgPreviewWrap') || $('featuredImgPreviewWrap');
@@ -2827,6 +3046,7 @@ function applyCustomStatBgImages() {
 // BOOT
 (function boot() {
   applyCustomStatBgImages();
+  if (typeof initBookPageZoom === 'function') initBookPageZoom();
 
   // Instant Memory Pre-Hydration: Fill every single page from previous memory immediately
   if (profileData) {

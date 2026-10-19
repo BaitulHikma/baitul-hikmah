@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baitul-hikmah-v19';
+const CACHE_NAME = 'baitul-hikmah-v20';
 const CORE_APP_SHELL = [
   './',
   './index.html',
