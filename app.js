@@ -339,13 +339,13 @@ function compressImage(file, maxKB) {
 }
 
 // Dedicated compressor ONLY for review section book page images.
-// Targets around 100KB (approx 90KB - 105KB) to avoid over-compression and preserve high text readability.
+// Targets around 150-160KB (approx 145KB - 165KB) to preserve maximum text sharpness and readability.
 function compressReviewPageImage(file, targetKB) {
-  targetKB = targetKB || 100;
-  const targetMinKB = 88;
-  const targetMaxKB = 108;
+  targetKB = targetKB || 155;
+  const targetMinKB = 145;
+  const targetMaxKB = 165;
 
-  // If already under or around 100KB, read directly without lossy downscaling
+  // If already under or around 150-160KB, read directly without lossy downscaling
   if (file && file.size && file.size <= targetMaxKB * 1024 && (file.type === 'image/jpeg' || file.type === 'image/webp' || file.type === 'image/png')) {
     return fileToBase64(file);
   }
@@ -362,9 +362,9 @@ function compressReviewPageImage(file, targetKB) {
           return;
         }
 
-        // Keep maximum dimension up to 1800px so book page text stays sharp
-        let scale = Math.min(1.0, 1800 / Math.max(origW, origH));
-        let quality = 0.82;
+        // Keep maximum dimension up to 2000px so book page text stays sharp
+        let scale = Math.min(1.0, 2000 / Math.max(origW, origH));
+        let quality = 0.85;
 
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
